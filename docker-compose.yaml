@@ -2,7 +2,7 @@ version: '3.8'
 services:
   audiocraft-lab:
     build:
-      context: env/audiocraft/
+      context: environ/audiocraft/
       dockerfile: audiocraft.Dockerfile
     ports:
       - "8888:8888"
