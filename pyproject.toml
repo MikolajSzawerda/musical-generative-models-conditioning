@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "conditioning-of-musical-generative-models"
+version = "0.1.0"
+description = ""
+authors = ["Mikolaj Szawerda"]
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.11"
+click = "^8.1.7"
+sphinx = "^7.3.7"
+coverage = "^7.5.0"
+flake8 = "^7.0.0"
+python-dotenv = "^1.0.1"
+webdavclient3 = "^3.14.6"
+pyzotero = "^1.5.18"
+jupyter = "^1.0.0"
+jupyterlab = "^4.1.8"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
