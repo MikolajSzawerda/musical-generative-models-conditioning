@@ -1,0 +1,19 @@
+version: '3.8'
+services:
+  audiocraft-lab:
+    build:
+      context: env/audiocraft/
+      dockerfile: audiocraft.Dockerfile
+    ports:
+      - "8888:8888"
+    volumes:
+      - type: bind
+        source: .
+        target: /app
+    environment:
+      - NOTEBOOK_DIR=/app
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: ["gpu"]
