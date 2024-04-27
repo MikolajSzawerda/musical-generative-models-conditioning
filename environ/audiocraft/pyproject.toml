@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "audiocraft-lab"
+version = "0.1.0"
+description = ""
+authors = ["mszawerd <mikolaj.szawerda@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+tqdm = "^4.66.2"
+torch = "2.1.0"
+jupyterlab = "^4.1.8"
+audiocraft = "^1.2.0"
+librosa = "^0.10.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
