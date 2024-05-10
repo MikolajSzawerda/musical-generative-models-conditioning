@@ -16,6 +16,76 @@ else
 HAS_CONDA=True
 endif
 
+POETRY_TOOLS_ENV := $(shell cd environ/tools && poetry env info --path)
+POETRY_AUDIOCRAFT_ENV := $(shell cd environ/audiocraft && poetry env info --path)
+POETRY_MAIN_ENV := $(shell cd environ/main && poetry env info --path)
+
+VSCODE_SETTINGS_DIR := .vscode
+VSCODE_SETTINGS_PATH := $(VSCODE_SETTINGS_DIR)/settings.json
+
+install-tools-env:
+	@echo "Installing dependencies for the tools environment..."
+	@cd environ/tools && poetry install
+	@echo "Dependencies installed."
+
+install-audiocraft-env:
+	@echo "Installing dependencies for the audiocraft environment..."
+	@cd environ/audiocraft && poetry install
+	@poetry run python -m ipykernel install --user --name audiocraft_lab --display-name "Python Audiocraft"
+	@echo "Dependencies installed."
+
+install-main-env:
+	@echo "Installing dependencies for the main environment..."
+	@cd environ/main && poetry install
+	@echo "Dependencies installed."
+
+vc-env-tools: install-tools-env
+	@echo "Setting up VS Code to use tools environment..."
+	@mkdir -p $(VSCODE_SETTINGS_DIR)
+	@echo '{' > $(VSCODE_SETTINGS_PATH)
+	@echo '  "python.defaultInterpreterPath": "$(POETRY_TOOLS_ENV)/bin/python",' >> $(VSCODE_SETTINGS_PATH)
+	@echo '  "python.terminal.activateEnvironment": true,' >> $(VSCODE_SETTINGS_PATH)
+	@echo '  "python.envFile": "${workspaceFolder}/.env"' >> $(VSCODE_SETTINGS_PATH)
+	@echo '}' >> $(VSCODE_SETTINGS_PATH)
+	@echo "VS Code is now configured to use the tools environment."
+
+vc-env-audiocraft: install-audiocraft-env
+	@echo "Setting up VS Code to use audiocraft environment..."
+	@mkdir -p $(VSCODE_SETTINGS_DIR)
+	@echo '{' > $(VSCODE_SETTINGS_PATH)
+	@echo '  "python.defaultInterpreterPath": "$(POETRY_AUDIOCRAFT_ENV)/bin/python",' >> $(VSCODE_SETTINGS_PATH)
+	@echo '  "python.terminal.activateEnvironment": true,' >> $(VSCODE_SETTINGS_PATH)
+	@echo '  "python.envFile": "${workspaceFolder}/.env"' >> $(VSCODE_SETTINGS_PATH)
+	@echo '}' >> $(VSCODE_SETTINGS_PATH)
+	@echo "VS Code is now configured to use the audiocraft environment."
+
+vc-env-main: install-main-env
+	@echo "Setting up VS Code to use main environment..."
+	@mkdir -p $(VSCODE_SETTINGS_DIR)
+	@echo '{' > $(VSCODE_SETTINGS_PATH)
+	@echo '  "python.defaultInterpreterPath": "$(POETRY_MAIN_ENV)/bin/python",' >> $(VSCODE_SETTINGS_PATH)
+	@echo '  "python.terminal.activateEnvironment": true,' >> $(VSCODE_SETTINGS_PATH)
+	@echo '  "python.envFile": "${workspaceFolder}/.env"' >> $(VSCODE_SETTINGS_PATH)
+	@echo '}' >> $(VSCODE_SETTINGS_PATH)
+	@echo "VS Code is now configured to use the main environment."
+
+sh-env-tools:
+	@echo "Setting current shell to use tools environment..."
+	@cd environ/tools && poetry shell
+	@echo "Shell now uses tools env"
+
+sh-env-audiocraft:
+	@echo "Setting current shell to use audiocraft environment..."
+	@cd environ/audiocraft && poetry shell
+	@echo "Shell now uses audiocraft env"
+
+sh-env-main:
+	@echo "Setting current shell to use main environment..."
+	@cd environ/main && poetry shell
+	@echo "Shell now uses main env"
+
+
+
 #################################################################################
 # COMMANDS                                                                      #
 #################################################################################
@@ -76,21 +146,6 @@ test_environment:
 
 .DEFAULT_GOAL := help
 
-# Inspired by <http://marmelab.com/blog/2016/02/29/auto-documented-makefile.html>
-# sed script explained:
-# /^##/:
-# 	* save line in hold space
-# 	* purge line
-# 	* Loop:
-# 		* append newline + line to hold space
-# 		* go to next line
-# 		* if line starts with doc comment, strip comment character off and loop
-# 	* remove target prerequisites
-# 	* append hold space (+ newline) to line
-# 	* replace newline plus comments by `---`
-# 	* print line
-# Separate expressions are necessary because labels cannot be delimited by
-# semicolon; see <http://stackoverflow.com/a/11799865/1968>
 .PHONY: help
 help:
 	@echo "$$(tput bold)Available rules:$$(tput sgr0)"

@@ -3,7 +3,8 @@ name = "audiocraft-lab"
 version = "0.1.0"
 description = ""
 authors = ["mszawerd <mikolaj.szawerda@gmail.com>"]
-readme = "README.md"
+package-mode = false
+
 
 [tool.poetry.dependencies]
 python = "^3.10"
