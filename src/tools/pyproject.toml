@@ -1,10 +1,10 @@
 [tool.poetry]
 name = "tools"
-version = "0.3.0"
+version = "0.3.7"
 description = ""
 authors = ["mszawerd <mikolaj.szawerda@gmail.com>"]
 packages = [
-    { include = "tools", from = "../../src" }
+    { include = "tools", from = "src" }
 ]
 
 [tool.poetry.dependencies]
