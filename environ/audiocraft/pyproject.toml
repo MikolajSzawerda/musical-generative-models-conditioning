@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "audiocraft-lab"
-version = "0.1.0"
+version = "0.2.0"
 description = ""
 authors = ["mszawerd <mikolaj.szawerda@gmail.com>"]
 package-mode = false
@@ -13,6 +13,7 @@ torch = "2.1.0"
 jupyterlab = "^4.1.8"
 audiocraft = "^1.2.0"
 librosa = "^0.10.1"
+tools = {path = "../../src/tools"}
 
 
 [build-system]
