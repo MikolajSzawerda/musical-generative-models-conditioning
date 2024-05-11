@@ -30,8 +30,7 @@ install-tools-env:
 
 install-audiocraft-env:
 	@echo "Installing dependencies for the audiocraft environment..."
-	@cd environ/audiocraft && poetry install
-	@poetry run pip install torch
+	@cd environ/audiocraft && poetry install && poetry run pip install torch
 	@poetry run python -m ipykernel install --user --name audiocraft_lab --display-name "Python Audiocraft"
 	@echo "Dependencies installed."
 
