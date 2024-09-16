@@ -1,5 +1,68 @@
 # Research Papers Summary
 
+## Cross-conditioned Diffusion Model for Medical Image to Image Translation
+
+- **ID**: http://arxiv.org/abs/2409.08500v1
+- **Published**: 2024-09-13 02:48:56
+- **Authors**: Zhaohu Xing, Sicheng Yang, Sixiang Chen, Tian Ye, Yijun Yang, Jing Qin, Lei Zhu
+- **Categories**: , 
+
+### GPT Summary
+This paper presents a Cross-conditioned Diffusion Model (CDM) for medical image-to-image translation, addressing challenges related to incomplete MRI datasets by improving synthesis quality and generation efficiency. The approach utilizes a Modality-specific Representation Model and a Modality-decoupled Diffusion Network to enhance the performance of generative models in medical imaging.
+
+### New Contributions
+The introduction of a Cross-conditioned Diffusion Model that leverages target modality distributions for improved image synthesis, along with the development of a Modality-specific Representation Model and a Modality-decoupled Diffusion Network, represents a significant advancement in the efficiency and quality of medical image generation.
+
+### Tags
+Cross-conditioned Diffusion Model,  medical image synthesis,  image-to-image translation,  modality-specific representation,  generative adversarial networks,  denoising diffusion models,  MRI data augmentation,  medical imaging,  BraTS2023,  UPenn-GBM
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2409.08500v1)
+
+---
+
+## Estimating Atmospheric Variables from Digital Typhoon Satellite Images  via Conditional Denoising Diffusion Models
+
+- **ID**: http://arxiv.org/abs/2409.07961v2
+- **Published**: 2024-09-12 11:42:40
+- **Authors**: Zhangyue Ling, Pritthijit Nath, César Quilodrán-Casas
+- **Categories**: , 
+
+### GPT Summary
+This study investigates the use of Conditional Denoising Diffusion Probability Model (CDDPM) for predicting meteorological variables from satellite images of typhoons in Taiwan, demonstrating its superior performance compared to CNN and SENet models.
+
+### New Contributions
+The paper introduces the Conditional Denoising Diffusion Probability Model (CDDPM) as a more effective method for generating accurate meteorological data, achieving improvements in PSNR and RMSE over traditional models, which can be utilized for data imputation and enhanced forecasting.
+
+### Tags
+typhoon prediction,  diffusion models,  meteorological data generation,  satellite imagery,  data imputation,  Taiwan,  conditional diffusion,  weather forecasting,  machine learning in meteorology
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2409.07961v2)
+
+---
+
+## Controllable retinal image synthesis using conditional StyleGAN and  latent space manipulation for improved diagnosis and grading of diabetic  retinopathy
+
+- **ID**: http://arxiv.org/abs/2409.07422v1
+- **Published**: 2024-09-11 17:08:28
+- **Authors**: Somayeh Pakdelmoez, Saba Omidikia, Seyyed Ali Seyyedsalehi, Seyyede Zohreh Seyyedsalehi
+- **Categories**: , 
+
+### GPT Summary
+This paper presents a framework utilizing conditional StyleGAN to generate high-fidelity and diverse diabetic retinopathy fundus images, significantly enhancing classifier performance in detection and grading of the disease. By controlling severity and visual features without the need for auxiliary networks, the approach improves data diversity and classifier accuracy.
+
+### New Contributions
+The study introduces a novel use of conditional StyleGAN for generating retinal images with controllable disease severity and visual features, along with a new SeFa-based data augmentation strategy that enhances classifier training by focusing on discriminative regions, leading to improved accuracy and performance metrics.
+
+### Tags
+diabetic retinopathy,  fundus image generation,  conditional StyleGAN,  data augmentation,  SeFa algorithm,  classifier performance,  image realism,  retinal disease grading,  deep learning in healthcare
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2409.07422v1)
+
+---
+
 ## An End-to-End Approach for Chord-Conditioned Song Generation
 
 - **ID**: http://arxiv.org/abs/2409.06307v1
@@ -18,6 +81,216 @@ song generation,  chord conditioning,  cross-attention mechanism,  musical perfo
 
 ### PDF Link
 [Link](http://arxiv.org/pdf/2409.06307v1)
+
+---
+
+## ICPR 2024 Competition on Safe Segmentation of Drive Scenes in  Unstructured Traffic and Adverse Weather Conditions
+
+- **ID**: http://arxiv.org/abs/2409.05327v1
+- **Published**: 2024-09-09 04:42:57
+- **Authors**: Furqan Ahmed Shaik, Sandeep Nagar, Aiswarya Maturi, Harshit Kumar Sankhla, Dibyendu Ghosh, Anshuman Majumdar, Srikanth Vidapanakal, Kunal Chaudhary, Sunny Manchanda, Girish Varma
+- **Categories**: , 
+
+### GPT Summary
+The ICPR 2024 Competition focused on evaluating semantic segmentation models for autonomous driving under challenging conditions, using a novel Safe mIoU metric to prioritize safety. The competition highlighted advancements in model performance and established new benchmarks for operating in adverse weather and unstructured environments.
+
+### New Contributions
+The introduction and use of the Safe mean Intersection over Union (Safe mIoU) metric to assess model safety during segmentation tasks, alongside the provision of a robust dataset (IDD-AW) for training and evaluation under adverse conditions.
+
+### Tags
+semantic segmentation,  autonomous driving,  adverse weather conditions,  Safe mIoU,  IDDAW dataset,  safety in AI,  benchmarking,  robustness in segmentation,  unstructured traffic,  real-world scenarios
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2409.05327v1)
+
+---
+
+## Visual Grounding with Multi-modal Conditional Adaptation
+
+- **ID**: http://arxiv.org/abs/2409.04999v1
+- **Published**: 2024-09-08 07:08:58
+- **Authors**: Ruilin Yao, Shengwu Xiong, Yichen Zhao, Yi Rong
+- **Categories**: , 
+
+### GPT Summary
+This paper presents Multi-modal Conditional Adaptation (MMCA), a novel approach for visual grounding that enhances object localization specified by natural language by adaptively updating the visual encoder's weights to focus on text-relevant regions. The approach integrates multi-modal embeddings to improve detection performance and achieves state-of-the-art results across multiple datasets.
+
+### New Contributions
+The paper introduces MMCA, which allows the visual encoder to adaptively adjust its focus based on textual information, overcoming limitations of existing methods that rely on independent feature extraction. This method not only improves localization accuracy but also demonstrates efficiency and lightweight design through extensive experiments.
+
+### Tags
+visual grounding,  multi-modal adaptation,  object localization,  natural language processing,  visual encoder,  weight adjustment,  multi-modal embeddings,  state-of-the-art performance,  efficiency in grounding
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2409.04999v1)
+
+---
+
+## Training-Free Style Consistent Image Synthesis with Condition and Mask  Guidance in E-Commerce
+
+- **ID**: http://arxiv.org/abs/2409.04750v1
+- **Published**: 2024-09-07 07:50:13
+- **Authors**: Guandong Li
+- **Categories**: 
+
+### GPT Summary
+This paper presents a train-free method for generating style-consistent images in e-commerce by modifying attention maps in diffusion models, specifically integrating UNet with image conditions while preserving the product's main composition.
+
+### New Contributions
+The introduction of the QKV level concept, which enhances cross-attention similarity using shared KV and employs mask guidance from attention maps to direct the generation process, represents a significant innovation in style-consistent image generation without modifying the underlying product structure.
+
+### Tags
+style-consistent image generation,  e-commerce,  diffusion models,  UNet integration,  attention maps,  train-free methods,  cross-attention,  mask guidance,  QKV level modifications
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2409.04750v1)
+
+---
+
+## Multi-Conditioned Denoising Diffusion Probabilistic Model (mDDPM) for  Medical Image Synthesis
+
+- **ID**: http://arxiv.org/abs/2409.04670v1
+- **Published**: 2024-09-07 01:19:02
+- **Authors**: Arjun Krishna, Ge Wang, Klaus Mueller
+- **Categories**: 
+
+### GPT Summary
+This paper presents a controlled generation framework using Denoising Diffusion Probabilistic Models (DDPM) to synthesize annotated lung CT images, demonstrating the ability to generate realistic and anatomically consistent medical images that can deceive experts.
+
+### New Contributions
+The study introduces a novel approach to generating synthetic medical images with precise anatomical annotations by employing a classifier-free sampling strategy, significantly advancing the quality and reliability of generated medical imaging datasets compared to existing state-of-the-art models.
+
+### Tags
+medical imaging,  lung CT,  Denoising Diffusion Probabilistic Model,  synthetic image generation,  classifier-free sampling,  anatomical consistency,  data augmentation,  controlled generation,  deep learning in healthcare
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2409.04670v1)
+
+---
+
+## Programming Refusal with Conditional Activation Steering
+
+- **ID**: http://arxiv.org/abs/2409.05907v1
+- **Published**: 2024-09-06 15:47:40
+- **Authors**: Bruce W. Lee, Inkit Padhi, Karthikeyan Natesan Ramamurthy, Erik Miehling, Pierre Dognin, Manish Nagireddy, Amit Dhurandhar
+- **Categories**: , , 
+
+### GPT Summary
+This paper introduces Conditional Activation Steering (CAST), a novel method for selectively controlling the response behavior of large language models (LLMs) based on input context, enhancing their applicability in sensitive domains like content moderation.
+
+### New Contributions
+The paper presents CAST, which leverages analysis of LLM activation patterns to apply activation steering selectively, allowing for tailored responses to specific types of prompts while preserving normal behavior for others, all without the need for weight optimization.
+
+### Tags
+conditional activation steering,  LLM response control,  activation patterns analysis,  content moderation,  domain-specific assistants,  selective response modification,  open-source framework,  prompt categorization,  behavioral governance
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2409.05907v1)
+
+---
+
+## HUMOS: Human Motion Model Conditioned on Body Shape
+
+- **ID**: http://arxiv.org/abs/2409.03944v1
+- **Published**: 2024-09-05 23:50:57
+- **Authors**: Shashank Tripathi, Omid Taheri, Christoph Lassner, Michael J. Black, Daniel Holden, Carsten Stoll
+- **Categories**: , 
+
+### GPT Summary
+This paper presents a novel generative motion model that accounts for variations in human body shapes to produce realistic and diverse human motion, addressing limitations of existing models that use an average body standard. The model utilizes unpaired data training with cycle consistency, intuitive physics, and stability constraints to enhance the relationship between identity and movement.
+
+### New Contributions
+The introduction of a generative motion model that uniquely incorporates body shape variations and employs innovative training techniques such as cycle consistency, intuitive physics, and stability constraints, resulting in more realistic and varied human motion generation compared to existing methods.
+
+### Tags
+human motion generation,  body shape modeling,  cycle consistency,  intuitive physics,  dynamic stability,  unpaired data training,  diverse motion synthesis,  realistic animation,  computer vision applications
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2409.03944v1)
+
+---
+
+## TCDiff: Triple Condition Diffusion Model with 3D Constraints for  Stylizing Synthetic Faces
+
+- **ID**: http://arxiv.org/abs/2409.03600v1
+- **Published**: 2024-09-05 14:59:41
+- **Authors**: Bernardo Biesseck, Pedro Vidal, Luiz Coelho, Roger Granada, David Menotti|
+- **Categories**: 
+
+### GPT Summary
+This paper presents a novel Triple Condition Diffusion Model (TCDiff) aimed at improving face style transfer from real to synthetic faces, enhancing identity consistency while maintaining high intra-class variance. The proposed model demonstrates superior performance in face recognition tasks using a newly created dataset compared to existing synthetic datasets.
+
+### New Contributions
+The TCDiff model introduces a unique approach that incorporates 2D and 3D facial constraints, effectively balancing the trade-off between identity consistency and intra-class variance in synthetic face generation, and significantly outperforms current state-of-the-art methods in various face recognition benchmarks.
+
+### Tags
+Triple Condition Diffusion Model,  face style transfer,  synthetic face generation,  identity consistency,  intra-class variance,  face recognition benchmarks,  2D and 3D facial constraints,  GANs,  Diffusion Models,  synthetic datasets
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2409.03600v1)
+
+---
+
+## Weight Conditioning for Smooth Optimization of Neural Networks
+
+- **ID**: http://arxiv.org/abs/2409.03424v1
+- **Published**: 2024-09-05 11:10:34
+- **Authors**: Hemanth Saratchandran, Thomas X. Wang, Simon Lucey
+- **Categories**: 
+
+### GPT Summary
+This paper presents a new normalization technique for neural network weight matrices called weight conditioning, which improves convergence in optimization by addressing the conditioning of weight matrices.
+
+### New Contributions
+The paper introduces weight conditioning, demonstrating that it smoothens the loss landscape and enhances the convergence of stochastic gradient descent, outperforming existing weight normalization methods in various neural network architectures.
+
+### Tags
+weight conditioning,  neural network normalization,  stochastic gradient descent,  loss landscape,  convergence improvement,  numerical linear algebra,  CNN,  ViT,  NeRF,  3D shape modeling
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2409.03424v1)
+
+---
+
+## UC-NeRF: Uncertainty-aware Conditional Neural Radiance Fields from  Endoscopic Sparse Views
+
+- **ID**: http://arxiv.org/abs/2409.02917v1
+- **Published**: 2024-09-04 17:53:42
+- **Authors**: Jiaxin Guo, Jiangliu Wang, Ruofeng Wei, Di Kang, Qi Dou, Yun-hui Liu
+- **Categories**: , 
+
+### GPT Summary
+The paper introduces UC-NeRF, an uncertainty-aware conditional Neural Radiance Field approach for novel view synthesis in surgical scenes, addressing challenges posed by sparse endoscopic views and photometric inconsistencies. The method enhances geometric correspondence and photometric modeling by incorporating multi-view uncertainty estimation.
+
+### New Contributions
+The study presents a consistency learner for geometric correspondence from sparse views, a base-adaptive NeRF network for managing photometric inconsistencies, and an uncertainty-guided geometry distillation technique, all of which contribute to improved rendering performance over existing methods.
+
+### Tags
+uncertainty-aware NeRF,  novel view synthesis,  surgical scene visualization,  multi-view stereo,  photometric consistency,  geometric correspondence,  endoscopic imaging,  geometry distillation,  neural rendering
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2409.02917v1)
+
+---
+
+## iConFormer: Dynamic Parameter-Efficient Tuning with Input-Conditioned  Adaptation
+
+- **ID**: http://arxiv.org/abs/2409.02838v1
+- **Published**: 2024-09-04 16:06:23
+- **Authors**: Hayeon Jo, Hyesong Choi, Minhee Cho, Dongbo Min
+- **Categories**: 
+
+### GPT Summary
+This paper introduces iConFormer, a novel parameter-efficient fine-tuning (PEFT) approach that utilizes dynamic adapters conditioned on input instances to enhance the flexibility and performance of deep models in various downstream tasks.
+
+### New Contributions
+The key contribution of this work is the development of the input-Conditioned Network (iCoN) within the dynamic adapter, which allows for instance-level feature transformation and generates adaptive convolutional kernels, achieving performance on par with full fine-tuning while utilizing a significantly smaller proportion of parameters.
+
+### Tags
+input-conditioned networks,  parameter-efficient fine-tuning,  dynamic adapters,  instance-level feature transformation,  transformer models,  monocular depth estimation,  semantic segmentation,  image classification,  instance segmentation
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2409.02838v1)
 
 ---
 
@@ -42,6 +315,27 @@ Daily Phonotrauma Index,  phonotraumatic vocal hyperfunction,  ambulatory voice 
 
 ---
 
+## QID$^2$: An Image-Conditioned Diffusion Model for Q-space Up-sampling of  DWI Data
+
+- **ID**: http://arxiv.org/abs/2409.02309v1
+- **Published**: 2024-09-03 21:39:58
+- **Authors**: Zijian Chen, Jueqi Wang, Archana Venkataraman
+- **Categories**: , , 
+
+### GPT Summary
+This paper introduces QID$^2$, an image-conditioned diffusion model designed to enhance low angular resolution diffusion weighted imaging (DWI) by generating high angular resolution estimates using a U-Net architecture with cross-attention. The model demonstrates superior performance over existing GAN approaches in generating higher-quality images and improving downstream tensor estimation metrics.
+
+### New Contributions
+The novel contributions include the development of the QID$^2$ model, which effectively utilizes image conditioning through a U-Net with cross-attention to generate high angular resolution DWI from low angular resolution data, achieving significant advancements in image quality and tensor estimation compared to traditional GAN models.
+
+### Tags
+diffusion models,  image-conditioned generation,  DWI reconstruction,  q-space up-sampling,  U-Net architecture,  cross-attention mechanism,  tensor estimation,  medical imaging,  Human Connectome Project
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2409.02309v1)
+
+---
+
 ## FastVoiceGrad: One-step Diffusion-Based Voice Conversion with  Adversarial Conditional Diffusion Distillation
 
 - **ID**: http://arxiv.org/abs/2409.02245v1
@@ -63,6 +357,111 @@ voice conversion,  diffusion models,  FastVoiceGrad,  speech synthesis,  adversa
 
 ---
 
+## AllWeatherNet:Unified Image enhancement for autonomous driving under  adverse weather and lowlight-conditions
+
+- **ID**: http://arxiv.org/abs/2409.02045v1
+- **Published**: 2024-09-03 16:47:01
+- **Authors**: Chenghao Qian, Mahdi Rezaei, Saeed Anwar, Wenjing Li, Tanveer Hussain, Mohsen Azarmi, Wei Wang
+- **Categories**: , 
+
+### GPT Summary
+The paper presents AllWeather-Net, a hierarchical architecture designed to enhance image quality under adverse conditions like snow, rain, and fog, improving semantic segmentation performance for autonomous driving systems. It introduces the Scaled Illumination-aware Attention Mechanism (SIAM), which effectively targets road elements crucial for perception tasks, resulting in significant improvements in image clarity and semantic segmentation metrics.
+
+### New Contributions
+AllWeather-Net is a new approach that addresses multiple adverse conditions simultaneously, unlike existing methods that focus on single conditions. Its novel hierarchical architecture and the introduction of the SIAM enable robust enhancement and improved performance in semantic segmentation without the need for retraining on unseen domains.
+
+### Tags
+image enhancement,  autonomous driving,  semantic segmentation,  adverse weather conditions,  hierarchical architecture,  attention mechanisms,  visual perception,  computer vision,  scene understanding
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2409.02045v1)
+
+---
+
+## Classifier-Free Diffusion-Based Weakly-Supervised Approach for Health  Indicator Derivation in Rotating Machines: Advancing Early Fault Detection  and Condition Monitoring
+
+- **ID**: http://arxiv.org/abs/2409.01676v1
+- **Published**: 2024-09-03 07:41:55
+- **Authors**: Wenyang Hu, Gaetan Frusque, Tianyang Wang, Fulei Chu, Olga Fink
+- **Categories**: , , 
+
+### GPT Summary
+This paper presents a diffusion-based weakly-supervised approach for deriving health indicators of rotating machines, facilitating early fault detection and continuous condition monitoring. The proposed method utilizes a classifier-free diffusion model trained on healthy and some anomalous samples to generate healthy samples and identify faults effectively.
+
+### New Contributions
+The study introduces a unique methodology that enhances fault detection by generating healthy samples for comparison, creating an anomaly map that identifies faults clearly while also improving explainability and reducing noise interference in health monitoring.
+
+### Tags
+diffusion models,  weakly-supervised learning,  fault detection,  rotating machinery,  anomaly detection,  health monitoring,  explainability,  noise reduction,  condition monitoring
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2409.01676v1)
+
+---
+
+## T1-contrast Enhanced MRI Generation from Multi-parametric MRI for Glioma  Patients with Latent Tumor Conditioning
+
+- **ID**: http://arxiv.org/abs/2409.01622v1
+- **Published**: 2024-09-03 05:45:37
+- **Authors**: Zach Eidex, Mojtaba Safari, Richard L. J. Qiu, David S. Yu, Hui-Kuo Shu, Hui Mao, Xiaofeng Yang
+- **Categories**: , , 
+
+### GPT Summary
+This study presents a deep-learning framework, the tumor-aware vision transformer (TA-ViT), which generates high-quality synthetic T1-postcontrast MRI images from pre-contrast multiparametric MRI data, demonstrating significant improvements over existing models. The proposed method aims to enhance brain tumor characterization while mitigating the risks associated with gadolinium-based contrast agents.
+
+### New Contributions
+The paper introduces the TA-ViT model that leverages adaptive layer norm zero mechanisms to condition transformer layers based on predicted segmentation maps, resulting in superior synthetic T1C images with enhanced soft tissue contrast and more accurate tumor reconstruction compared to the benchmark MRP-ViT model.
+
+### Tags
+tumor-aware vision transformer,  T1-postcontrast MRI,  multiparametric MRI,  glioma characterization,  deep learning in medical imaging,  contrast agent-free MRI,  adaptive layer norm,  synthetic image generation,  brain tumor imaging,  medical image segmentation
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2409.01622v1)
+
+---
+
+## Dynamic Motion Synthesis: Masked Audio-Text Conditioned Spatio-Temporal  Transformers
+
+- **ID**: http://arxiv.org/abs/2409.01591v1
+- **Published**: 2024-09-03 04:19:27
+- **Authors**: Sohan Anisetty, James Hays
+- **Categories**: , 
+
+### GPT Summary
+This paper introduces a novel framework for generating whole-body motion sequences conditioned on text and audio inputs, utilizing Vector Quantized Variational Autoencoders for motion discretization and a bidirectional Masked Language Modeling strategy for token prediction.
+
+### New Contributions
+The research enhances motion generation by integrating spatial attention mechanisms and a token critic, improving processing efficiency, coherence, and the naturalness of generated motions, while addressing the limitations of existing approaches and enabling multimodal motion synthesis.
+
+### Tags
+motion generation,  multimodal synthesis,  text conditioning,  audio conditioning,  VQVAEs,  masked language modeling,  spatial attention,  token critic,  whole-body motion,  coherence in motion
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2409.01591v1)
+
+---
+
+## Real-Time Multi-Scene Visibility Enhancement for Promoting Navigational  Safety of Vessels Under Complex Weather Conditions
+
+- **ID**: http://arxiv.org/abs/2409.01500v1
+- **Published**: 2024-09-02 23:46:27
+- **Authors**: Ryan Wen Liu, Yuxu Lu, Yuan Gao, Yu Guo, Wenqi Ren, Fenghua Zhu, Fei-Yue Wang
+- **Categories**: 
+
+### GPT Summary
+This paper introduces ERANet, a general-purpose multi-scene visibility enhancement method that leverages edge reparameterization and attention mechanisms to restore degraded images under various weather conditions, improving navigational safety for marine vessels.
+
+### New Contributions
+The paper's novel contributions include the development of a versatile visibility enhancement method that outperforms existing specific-purpose techniques by effectively adapting to different weather conditions while maintaining low computational costs, and demonstrating improvements in object detection and scene segmentation post-enhancement.
+
+### Tags
+visibility enhancement,  neural networks,  marine navigation,  environment perception,  image restoration,  attention mechanisms,  edge reparameterization,  computational efficiency,  weather adaptation,  intelligent waterborne transportation
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2409.01500v1)
+
+---
+
 ## Spectron: Target Speaker Extraction using Conditional Transformer with  Adversarial Refinement
 
 - **ID**: http://arxiv.org/abs/2409.01352v1
@@ -81,6 +480,153 @@ speaker extraction,  transformer model,  multi-speaker audio,  speaker embedding
 
 ### PDF Link
 [Link](http://arxiv.org/pdf/2409.01352v1)
+
+---
+
+## Towards Robust Online Domain Adaptive Semantic Segmentation under  Adverse Weather Conditions
+
+- **ID**: http://arxiv.org/abs/2409.01072v1
+- **Published**: 2024-09-02 08:53:08
+- **Authors**: Taorong Liu, Jing Xiao, Liang Liao, Chia-Wen Lin
+- **Categories**: 
+
+### GPT Summary
+This paper introduces RODASS, a robust online domain adaptive semantic segmentation framework that addresses challenges in ambiguous class identification during continuous domain shifts by employing dynamic strategies to minimize training costs and error propagation.
+
+### New Contributions
+The paper presents the Dynamic Ambiguous Patch Mask (DAP Mask) strategy to mitigate error accumulation in ambiguous classes and the Dynamic Source Class Mix (DSC Mix) method to enhance adaptation efficiency by using class-level source buffers, outperforming existing OnDA methods on benchmarks.
+
+### Tags
+online domain adaptation,  semantic segmentation,  dynamic domain shifts,  error propagation mitigation,  ambiguous class handling,  adaptive hyper-parameters,  source class augmentation,  noisy label reduction,  real-time performance
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2409.01072v1)
+
+---
+
+## From Bird's-Eye to Street View: Crafting Diverse and Condition-Aligned  Images with Latent Diffusion Model
+
+- **ID**: http://arxiv.org/abs/2409.01014v1
+- **Published**: 2024-09-02 07:47:16
+- **Authors**: Xiaojie Xu, Tianshuo Xu, Fulong Ma, Yingcong Chen
+- **Categories**: , 
+
+### GPT Summary
+This paper presents a framework for generating street-view images from Bird's-Eye View (BEV) maps, utilizing a fine-tuned latent diffusion model to ensure view and style consistency in the generated images. The framework consists of a Neural View Transformation that aligns semantic segmentation maps with BEV layouts and a Street Image Generation phase that produces high-quality images conditioned on these segmentations.
+
+### New Contributions
+The novel contributions of this paper include the development of a two-phase framework combining Neural View Transformation and fine-tuned latent diffusion models specifically for generating street images from BEV maps, which enhances the fidelity and coherence of the generated images in autonomous driving applications.
+
+### Tags
+Bird's-Eye View,  street image generation,  semantic segmentation,  conditional image generation,  latent diffusion model,  multi-view representation,  traffic scenario simulation,  neural transformation,  autonomous driving,  computer vision
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2409.01014v1)
+
+---
+
+## SeCo-INR: Semantically Conditioned Implicit Neural Representations for  Improved Medical Image Super-Resolution
+
+- **ID**: http://arxiv.org/abs/2409.01013v1
+- **Published**: 2024-09-02 07:45:06
+- **Authors**: Mevan Ekanayake, Zhifeng Chen, Gary Egan, Mehrtash Harandi, Zhaolin Chen
+- **Categories**: , , 
+
+### GPT Summary
+This paper introduces the Semantically Conditioned INR (SeCo-INR), a novel framework that enhances Implicit Neural Representations (INRs) by integrating local anatomical priors from medical images to improve super-resolution accuracy and robustness. The framework demonstrated superior performance across various medical imaging modalities when compared to existing state-of-the-art methods.
+
+### New Contributions
+The SeCo-INR framework uniquely incorporates local semantic segmentation features from medical images to optimize the INR for specific anatomical regions, resulting in improved fitting and interpolation for super-resolution tasks.
+
+### Tags
+Implicit Neural Representations,  super-resolution,  medical imaging,  semantic segmentation,  localized priors,  anatomical features,  continuous representation,  model fitting,  image interpolation
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2409.01013v1)
+
+---
+
+## Gradient-free variational learning with conditional mixture networks
+
+- **ID**: http://arxiv.org/abs/2408.16429v1
+- **Published**: 2024-08-29 10:43:55
+- **Authors**: Conor Heins, Hao Wu, Dimitrije Markovic, Alexander Tschantz, Jeff Beck, Christopher Buckley
+- **Categories**: , , 
+
+### GPT Summary
+This paper introduces conditional mixture networks (CMNs) as an efficient alternative to traditional Bayesian methods for supervised learning, enabling fast, gradient-free inference while maintaining robust predictive performance and uncertainty quantification. The proposed CAVI-CMN approach leverages conditional conjugacy and Pólya-Gamma augmentation to achieve competitive accuracy and efficient scaling with input size and model complexity.
+
+### New Contributions
+The paper presents CAVI-CMN, a novel probabilistic model that utilizes linear experts and a softmax gating network for fast, gradient-free variational inference, demonstrating improved predictive accuracy and computational efficiency compared to conventional methods like maximum likelihood estimation and black-box variational inference.
+
+### Tags
+conditional mixture networks,  Bayesian inference,  variational methods,  gradient-free optimization,  uncertainty quantification,  mixture-of-experts,  computational efficiency,  CAVI,  Pólya-Gamma augmentation,  supervised learning
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2408.16429v1)
+
+---
+
+## Enhancing Conditional Image Generation with Explainable Latent Space  Manipulation
+
+- **ID**: http://arxiv.org/abs/2408.16232v1
+- **Published**: 2024-08-29 03:12:04
+- **Authors**: Kshitij Pathania
+- **Categories**: , , , , 
+
+### GPT Summary
+This paper presents a novel approach that combines a diffusion model with latent space manipulation and gradient-based selective attention to enhance fidelity in image synthesis while adhering to conditional prompts. The method demonstrates improved performance in preserving subject fidelity and aligning generated images with textual descriptions.
+
+### New Contributions
+The paper introduces Grad-SAM, a technique that utilizes gradient-based selective attention to derive importance scores for elements of a denoised latent vector, enabling the creation of masks that preserve subjects and integrate reference image features effectively. This results in lower FID scores and higher alignment with textual descriptions compared to baseline models.
+
+### Tags
+image synthesis,  diffusion model,  latent space manipulation,  gradient-based attention,  conditional prompts,  text-to-image synthesis,  fidelity preservation,  Frechet Inception Distance,  CLIP scores
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2408.16232v1)
+
+---
+
+## Airfoil Diffusion: Denoising Diffusion Model For Conditional Airfoil  Generation
+
+- **ID**: http://arxiv.org/abs/2408.15898v1
+- **Published**: 2024-08-28 16:12:16
+- **Authors**: Reid Graves, Amir Barati Farimani
+- **Categories**: , 
+
+### GPT Summary
+This paper presents a novel data-driven methodology for generating aerodynamic shapes, particularly airfoils, using a diffusion model that can be conditioned on performance metrics and geometric criteria.
+
+### New Contributions
+The introduction of a diffusion model for airfoil generation represents a significant advancement in the design process by allowing for the creation of an arbitrary number of novel airfoil shapes based on random vectors and specific aerodynamic requirements, enhancing efficiency and design flexibility beyond traditional computational methods.
+
+### Tags
+airfoil generation,  diffusion model,  aerodynamic design,  data-driven methodology,  shape synthesis,  aerodynamic performance,  lift and drag optimization,  geometric criteria conditioning,  innovative design exploration
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2408.15898v1)
+
+---
+
+## GANs Conditioning Methods: A Survey
+
+- **ID**: http://arxiv.org/abs/2408.15640v3
+- **Published**: 2024-08-28 08:52:14
+- **Authors**: Anis Bourou, Valérie Mezger, Auguste Genovesio
+- **Categories**: , 
+
+### GPT Summary
+This paper reviews and compares various conditioning methods for Generative Adversarial Networks (GANs), highlighting their unique mechanisms and theoretical foundations while evaluating their performance on different image datasets.
+
+### New Contributions
+The paper provides a comprehensive analysis of existing conditioning techniques for GANs, identifying their strengths and limitations, which serves as a guide for future research and applications in generative modeling.
+
+### Tags
+conditional GANs,  generative modeling,  image generation,  conditioning techniques,  comparative analysis,  theoretical foundations,  performance evaluation,  generative adversarial networks,  machine-generated images
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2408.15640v3)
 
 ---
 
@@ -126,6 +672,69 @@ symbolic music generation,  multi-track arrangement,  music language model,  fin
 
 ---
 
+## EVINCE: Optimizing Adversarial LLM Dialogues via Conditional Statistics  and Information Theory
+
+- **ID**: http://arxiv.org/abs/2408.14575v1
+- **Published**: 2024-08-26 18:48:51
+- **Authors**: Edward Y. Chang
+- **Categories**: , 
+
+### GPT Summary
+The paper presents EVINCE, a novel dialogue framework that enhances the versatility and reasoning of large language models through a combination of adversarial debate and dual entropy theory, ultimately improving prediction accuracy and robustness. Its application in healthcare demonstrates significant advancements in disease diagnosis and highlights broader implications for decision-making across various fields.
+
+### New Contributions
+The introduction of the EVINCE framework, which integrates statistical modeling and information theory to balance diverse perspectives within language models, and its empirical validation in improving LLM collaboration and disease diagnosis.
+
+### Tags
+dialogue frameworks,  artificial general intelligence,  large language models,  entropy theory,  mutual information,  adversarial debate,  healthcare applications,  statistical modeling,  information theory,  decision-making
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2408.14575v1)
+
+---
+
+## GR-MG: Leveraging Partially Annotated Data via Multi-Modal Goal  Conditioned Policy
+
+- **ID**: http://arxiv.org/abs/2408.14368v1
+- **Published**: 2024-08-26 15:46:41
+- **Authors**: Peiyan Li, Hongtao Wu, Yan Huang, Chilam Cheang, Liang Wang, Tao Kong
+- **Categories**: , 
+
+### GPT Summary
+This paper presents GR-MG, a method designed to enhance robot manipulation by conditioning on both natural language instructions and goal images, leveraging partially annotated data to improve generalization capabilities.
+
+### New Contributions
+The novel contributions include the development of a progress-guided goal image generation model that incorporates task progress into the image generation process, resulting in improved fidelity and performance in robot manipulation tasks.
+
+### Tags
+robot manipulation,  natural language processing,  goal image generation,  partially annotated data,  task generalization,  progress-guided generation,  diffusion-based models,  robotics experimentation,  flexible task specification
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2408.14368v1)
+
+---
+
+## Multimodal Ensemble with Conditional Feature Fusion for Dysgraphia  Diagnosis in Children from Handwriting Samples
+
+- **ID**: http://arxiv.org/abs/2408.13754v1
+- **Published**: 2024-08-25 07:42:54
+- **Authors**: Jayakanth Kunhoth, Somaya Al-Maadeed, Moutaz Saleh, Younes Akbari
+- **Categories**: , , 
+
+### GPT Summary
+This paper presents a novel multimodal machine learning approach that combines online and offline handwriting data to improve the diagnosis of developmental dysgraphia, achieving significant accuracy improvements over traditional methods. The methodology introduces a unique conditional feature fusion technique that enhances classifier performance by adaptively merging predictions based on confidence levels.
+
+### New Contributions
+The study introduces a new dataset generated from existing online handwriting data to create corresponding offline handwriting images, as well as a conditional feature fusion method that selectively integrates predictions from online and offline classifiers, leading to improved diagnostic accuracy for dysgraphia.
+
+### Tags
+multimodal machine learning,  dysgraphia diagnosis,  handwriting analysis,  online handwriting,  offline handwriting,  conditional feature fusion,  SVM,  XGBoost,  feature fusion,  ensemble learning
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2408.13754v1)
+
+---
+
 ## Hierarchical Generative Modeling of Melodic Vocal Contours in Hindustani  Classical Music
 
 - **ID**: http://arxiv.org/abs/2408.12658v2
@@ -168,6 +777,48 @@ video-to-sound synthesis,  Foley sound synthesis,  RMS temporal conditioning,  s
 
 ---
 
+## Offline Policy Learning via Skill-step Abstraction for Long-horizon  Goal-Conditioned Tasks
+
+- **ID**: http://arxiv.org/abs/2408.11300v1
+- **Published**: 2024-08-21 03:05:06
+- **Authors**: Donghoon Kim, Minjong Yoo, Honguk Woo
+- **Categories**: , 
+
+### GPT Summary
+This paper introduces the GLvSA framework for goal-conditioned policy learning, which addresses the challenge of sparse rewards in long-horizon tasks by leveraging skill-step abstraction from offline data. The proposed method demonstrates significant improvements in the efficiency and adaptability of policy learning for long-term goals in various environments.
+
+### New Contributions
+The paper presents a novel offline GC policy learning framework that incorporates skill-step abstraction to decompose long-horizon goals into manageable near-term goals, along with a hierarchical policy structure that enhances learning speed and fine-tuning efficiency.
+
+### Tags
+goal-conditioned learning,  offline reinforcement learning,  skill-based learning,  policy hierarchy,  long-horizon tasks,  goal distribution shifts,  skill-step abstraction,  zero-shot adaptation,  few-shot adaptation
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2408.11300v1)
+
+---
+
+## Accelerating Goal-Conditioned RL Algorithms and Research
+
+- **ID**: http://arxiv.org/abs/2408.11052v1
+- **Published**: 2024-08-20 17:58:40
+- **Authors**: Michał Bortkiewicz, Władek Pałucki, Vivek Myers, Tadeusz Dziarmaga, Tomasz Arczewski, Łukasz Kuciński, Benjamin Eysenbach
+- **Categories**: , 
+
+### GPT Summary
+This paper introduces JaxGCRL, a high-performance codebase and benchmark for self-supervised goal-conditioned reinforcement learning, designed to significantly improve training efficiency on single GPUs. By leveraging GPU-accelerated environments and a stable batched contrastive reinforcement learning algorithm, it addresses challenges of slow environments and data scarcity in GCRL.
+
+### New Contributions
+The paper presents a novel codebase that allows rapid training of GCRL agents, achieving millions of environment steps in minutes, and introduces a stable algorithm that utilizes a contrastive learning approach to enhance data efficiency and agent performance.
+
+### Tags
+self-supervised learning,  goal-conditioned reinforcement learning,  contrastive reinforcement learning,  GPU-accelerated environments,  data efficiency in RL,  algorithm stability,  benchmarking in RL,  JaxGCRL,  reinforcement learning frameworks
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2408.11052v1)
+
+---
+
 ## DisMix: Disentangling Mixtures of Musical Instruments for Source-level  Pitch and Timbre Manipulation
 
 - **ID**: http://arxiv.org/abs/2408.10807v1
@@ -186,6 +837,27 @@ pitch-timbre disentanglement,  multi-instrument music,  generative framework,  l
 
 ### PDF Link
 [Link](http://arxiv.org/pdf/2408.10807v1)
+
+---
+
+## Data-driven Conditional Instrumental Variables for Debiasing Recommender  Systems
+
+- **ID**: http://arxiv.org/abs/2408.09651v1
+- **Published**: 2024-08-19 02:17:22
+- **Authors**: Zhirong Huang, Shichao Zhang, Debo Cheng, Jiuyong Li, Lin Liu, Guangquan Lu
+- **Categories**: , 
+
+### GPT Summary
+The paper introduces a new data-driven conditional instrumental variable (CIV) method called CIV4Rec for debiasing recommender systems, which automatically generates valid CIVs from interaction data to mitigate bias introduced by latent variables. Experimental results show that CIV4Rec significantly enhances recommendation accuracy by effectively addressing confounding bias.
+
+### New Contributions
+CIV4Rec represents a novel approach that simplifies the identification of valid conditional instrumental variables by using variational autoencoders to generate representations from interaction data, thereby reducing the complexity of IV selection and improving the accuracy of recommendation systems.
+
+### Tags
+conditional instrumental variables,  recommender systems,  debiasing methods,  latent variable bias,  variational autoencoders,  causal inference in recommendations,  click prediction,  CIV4Rec,  data-driven methods
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2408.09651v1)
 
 ---
 
@@ -438,6 +1110,27 @@ factor-conditioned captioning,  speaking-style prediction,  diverse caption gene
 
 ### PDF Link
 [Link](http://arxiv.org/pdf/2406.18910v1)
+
+---
+
+## The Music Maestro or The Musically Challenged, A Massive Music  Evaluation Benchmark for Large Language Models
+
+- **ID**: http://arxiv.org/abs/2406.15885v1
+- **Published**: 2024-06-22 16:24:42
+- **Authors**: Jiajia Li, Lu Yang, Mingni Tang, Cong Chen, Zuchao Li, Ping Wang, Hai Zhao
+- **Categories**: , , 
+
+### GPT Summary
+The paper introduces ZIQI-Eval, a large-scale benchmark designed to assess the musical abilities of large language models (LLMs), comprising over 14,000 data entries across various music-related categories. Initial evaluations reveal that current LLMs exhibit significant deficiencies in musical capabilities, highlighting the need for further advancements in this area.
+
+### New Contributions
+ZIQI-Eval is a pioneering benchmark specifically targeting the evaluation of LLMs in music, providing a structured framework and extensive dataset to facilitate future research and improvements in this domain.
+
+### Tags
+music evaluation,  large language models,  benchmarking,  ZIQI-Eval,  musical capabilities,  data-driven assessment,  LLM performance,  music-related tasks,  generative music models
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2406.15885v1)
 
 ---
 
@@ -1449,6 +2142,27 @@ evaluation metric,  generalization,  Out of Distribution,  model performance,  s
 
 ---
 
+## Speaker-Conditional Chain Model for Speech Separation and Extraction
+
+- **ID**: http://arxiv.org/abs/2006.14149v1
+- **Published**: 2020-06-25 03:13:41
+- **Authors**: Jing Shi, Jiaming Xu, Yusuke Fujita, Shinji Watanabe, Bo Xu
+- **Categories**: , 
+
+### GPT Summary
+This paper introduces a Speaker-Conditional Chain Model aimed at improving speech separation in complex recordings by inferring speaker identities and using them as conditions for extracting speech sources. The model demonstrates enhanced adaptability for multi-round long recordings while achieving comparable results to existing methods on standard benchmarks.
+
+### New Contributions
+The novel contributions include the development of a Speaker-Conditional Chain Model that integrates speaker identity inference with speech source extraction, specifically enhancing performance in scenarios with multiple overlapping speakers and long recordings.
+
+### Tags
+speech separation,  cocktail party problem,  speaker extraction,  sequence-to-sequence model,  multi-round recordings,  speaker identity inference,  audio processing,  overlapping speech,  real-world scenarios
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2006.14149v1)
+
+---
+
 ## Descriptor Revision for Conditionals: Literal Descriptors and  Conditional Preservation
 
 - **ID**: http://arxiv.org/abs/2006.01444v1
@@ -1974,6 +2688,27 @@ instance matching,  property weight generation,  semantic knowledge bases,  info
 
 ---
 
+## Conditional Random Fields as Recurrent Neural Networks
+
+- **ID**: http://arxiv.org/abs/1502.03240v3
+- **Published**: 2015-02-11 10:02:50
+- **Authors**: Shuai Zheng, Sadeep Jayasumana, Bernardino Romera-Paredes, Vibhav Vineet, Zhizhong Su, Dalong Du, Chang Huang, Philip H. S. Torr
+- **Categories**: 
+
+### GPT Summary
+This paper presents a novel convolutional neural network, CRF-RNN, which integrates Conditional Random Fields with CNNs to enhance pixel-level labeling in semantic segmentation tasks. The proposed method allows for end-to-end training of the network, improving the delineation of visual objects without the need for offline post-processing.
+
+### New Contributions
+The CRF-RNN model introduces a new approach to combine CNNs with CRFs for semantic segmentation, allowing for mean-field approximate inference to be formulated as Recurrent Neural Networks and facilitating complete end-to-end training.
+
+### Tags
+semantic segmentation,  conditional random fields,  convolutional neural networks,  image understanding,  object delineation,  mean-field inference,  end-to-end training,  pixel-level labeling,  Pascal VOC 2012,  deep learning integration
+
+### PDF Link
+[Link](http://arxiv.org/pdf/1502.03240v3)
+
+---
+
 ## Probabilistic Conditional Preference Networks
 
 - **ID**: http://arxiv.org/abs/1309.6817v1
@@ -2034,6 +2769,27 @@ non-monotonic reasoning,  conditional logic,  probability theory,  evidence comb
 
 ### PDF Link
 [Link](http://arxiv.org/pdf/1304.1131v1)
+
+---
+
+## Adverse Conditions and ASR Techniques for Robust Speech User Interface
+
+- **ID**: http://arxiv.org/abs/1303.5515v1
+- **Published**: 2013-03-22 04:44:37
+- **Authors**: Urmila Shrawankar, VM Thakare
+- **Categories**: , 
+
+### GPT Summary
+This paper addresses the challenges faced by Automatic Speech Recognition (ASR) systems due to variations in speaker characteristics and environmental conditions, proposing techniques to enhance robustness across different acoustic environments. The research emphasizes the need for ASR systems to maintain performance levels when faced with novel environments without requiring retraining.
+
+### New Contributions
+The paper categorizes the difficulties in ASR into speaker characteristics and environmental conditions while presenting specific techniques aimed at improving the robustness of ASR systems against these variations, particularly in enhancing environment-independent recognition accuracy.
+
+### Tags
+Automatic Speech Recognition,  robustness in ASR,  speaker variability,  acoustic environment,  environment-independent recognition,  speech signal compensation,  ASR performance enhancement,  man-machine communication,  external factors in ASR
+
+### PDF Link
+[Link](http://arxiv.org/pdf/1303.5515v1)
 
 ---
 
