@@ -14,3 +14,6 @@ https://arxiv.org/pdf/2407.15060v1
 MELFUSION: Synthesizing Music from Image and Language Cues using
 Diffusion Models
 https://arxiv.org/pdf/2406.04673v1
+
+https://paperswithcode.com/paper/a-survey-of-ai-music-generation-tools-and
+https://arxiv.org/pdf/2308.12982v1
