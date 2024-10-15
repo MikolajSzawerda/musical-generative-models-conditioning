@@ -1,0 +1,1 @@
+https://paperswithcode.com/sota/text-to-music-generation-on-musiccaps

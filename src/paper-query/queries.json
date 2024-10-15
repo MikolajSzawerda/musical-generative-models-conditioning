@@ -1,0 +1,48 @@
+{
+    "queries": [
+        {
+            "id": "latest_update_music_conditioning",
+            "query": "ti:music+AND+abs:conditioned+AND+%28cat:cs.SD+OR+cat:cs.AI+OR+cat:cs.CV%29&max_results=20&sortBy=lastUpdatedDate&sortOrder=descending"
+        },
+        {
+            "id": "latest_music_conditioning",
+            "query": "%28ti:conditioning+OR+ti:%22generative+music%22%29AND+cat:cs.SD&max_results=20&sortBy=submittedDate&sortOrder=descending"
+        },
+        {
+            "id": "sound_conditioning",
+            "query": "ti:conditioning+AND+cat:cs.SD&max_results=20&sortBy=relevance"
+        },
+        {
+            "id": "latest_sound_conditioning",
+            "query": "ti:conditioning+AND+cat:cs.SD&max_results=10&sortBy=submittedDate&sortOrder=descending"
+        },
+        {
+            "id": "cv_conditioning",
+            "query": "ti:conditioning+AND+cat:cs.CV&max_results=20&sortBy=relevance"
+        },
+        {
+            "id": "latest_cv_conditioning",
+            "query": "ti:conditioning+AND+cat:cs.CV&max_results=5&sortBy=submittedDate&sortOrder=descending"
+        },
+        {
+            "id": "generative_metrics",
+            "query": "%28ti:generative+AND+ti:metrics%29+AND+cat:cs.AI&max_results=20&sortBy=relevance"
+        },
+        {
+            "id": "ai_conditioning",
+            "query": "ti:conditioning+AND+cat:cs.AI&max_results=20&sortBy=relevance"
+        },
+        {
+            "id": "latest_ai_conditioning",
+            "query": "ti:conditioning+AND+cat:cs.AI&max_results=5&sortBy=submittedDate&sortOrder=descending"
+        },
+        {
+            "id": "generative_music_evaluation",
+            "query": "%28ti:%22music+evaluation%22%29AND+cat:cs.SD&max_results=20&sortBy=relevance"
+        },
+        {
+            "id": "audio_synthetis",
+            "query": "%28ti:%22audio+synthesis%22%29AND+cat:cs.SD&max_results=20&sortBy=relevance"
+        }
+    ]
+}
