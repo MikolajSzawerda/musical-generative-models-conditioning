@@ -6,11 +6,11 @@ compile-py-tools:
 
 #uploads files to nextcloud
 push src *dest:
-	poetry run python3 src/tools/nextcloud.py push {{src}} {{dest}}
+	poetry run python3 src/tools/tools/nextcloud.py push {{src}} {{dest}}
 
 #downloads files from nextcloud
 pull src *dest:
-	poetry run python3 src/tools/nextcloud.py pull {{src}} {{dest}}
+	poetry run python3 src/tools/tools/nextcloud.py pull {{src}} {{dest}}
 
 #combines files in provided dir into one audio file with ffmpeg
 combine src output:
