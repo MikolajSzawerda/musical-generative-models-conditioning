@@ -34,3 +34,6 @@ prepare-audiocraft:
 #runs tensorboard
 board exp:
 	tensorboard --logdir=logs/{{exp}}
+
+clear-board exp:
+	rm -rf logs/{{exp}}
