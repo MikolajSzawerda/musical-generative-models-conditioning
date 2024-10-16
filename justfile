@@ -23,12 +23,13 @@ split input length filename_format:
 #init env for audiocraft experiments
 prepare-audiocraft:
 	cd src/audiocraft \
-	&& pyenv local 3.9 \
-	&& poetry run pip install setuptools wheel torch\
-	&& poetry run pip install xformers==0.0.22.post7 --no-use-pep517 \
 	&& poetry install \
 	&& poetry run python3 -c "from audiocraft.models import MusicGen;MusicGen.get_pretrained('facebook/musicgen-small')" \
 	&& poetry run python -m ipykernel install --user --name audiocraft_lab --display-name "Python Audiocraft"
+
+#	&& poetry run pip install setuptools wheel torch\
+#	&& poetry run pip install xformers==0.0.22.post7 --no-use-pep517 \
+
 
 #runs tensorboard
 board exp:
