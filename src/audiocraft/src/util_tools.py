@@ -33,3 +33,52 @@ def compute_cross_entropy(logits: torch.Tensor, targets: torch.Tensor, mask: tor
 	# average cross entropy across codebooks
 	ce = ce / K
 	return ce, ce_per_codebook
+
+def compute_contrastive_loss_with_labels(
+		logits: torch.Tensor,
+		labels: torch.Tensor,
+		temperature: float = 0.5
+) -> torch.Tensor:
+	"""
+	Compute contrastive loss between logits of song_1 and song_2 using labels to determine
+	whether a pair is positive or negative.
+
+	Args:
+		logits (torch.Tensor): Stacked logits for song_1 and song_2 of shape [2 * B, K, T, card].
+							   logits[:B] are for song_1, logits[B:] are for song_2.
+		labels (torch.Tensor): Binary labels (1 for positive, 0 for negative) of shape [B].
+							   These labels determine if the pair (song_1, song_2) is a positive or negative pair.
+		temperature (float): Temperature scaling for contrastive loss.
+
+	Returns:
+		contrastive_loss (torch.Tensor): The computed contrastive loss.
+	"""
+	num_examples = logits.shape[0] // 2  # Assuming first half is for song_1, second half is for song_2
+	assert logits.shape[0] % 2 == 0, "Logits should be stacked for song_1 and song_2."
+
+	# Split logits for song_1 and song_2
+	logits_song_1 = logits[:num_examples]  # [B, K, T, card]
+	logits_song_2 = logits[num_examples:]  # [B, K, T, card]
+
+	B, K, T, _ = logits_song_1.shape
+
+	# Flatten the logits for each codebook (K) to create embeddings
+	logits_song_1 = logits_song_1.reshape(B, -1)  # [B, K * T * card]
+	logits_song_2 = logits_song_2.reshape(B, -1)  # [B, K * T * card]
+
+	# Normalize embeddings (important for contrastive learning)
+	logits_song_1 = F.normalize(logits_song_1, dim=1)
+	logits_song_2 = F.normalize(logits_song_2, dim=1)
+
+	# Compute cosine similarity between all pairs
+	cosine_similarity = F.cosine_similarity(logits_song_1, logits_song_2)  # [B]
+
+	# Contrastive loss formula (positive pairs should have higher similarity, negative lower)
+	positive_loss = (1 - labels) * torch.pow(cosine_similarity, 2)  # Push negative pairs apart
+	negative_loss = labels * torch.pow(torch.clamp(1.0 - cosine_similarity, min=0.0), 2)  # Bring positive pairs together
+
+	# Average the loss over the batch
+	contrastive_loss = torch.mean(positive_loss + negative_loss)
+
+	return contrastive_loss
+

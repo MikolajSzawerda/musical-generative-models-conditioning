@@ -22,6 +22,7 @@ seaborn = "^0.13.2"
 protobuf = "3.20.*"
 tensorboard = "^2.18.0"
 tools = {path='../tools'}
+pytorch-metric-learning = "^2.6.0"
 
 
 [build-system]
