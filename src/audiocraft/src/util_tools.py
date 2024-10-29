@@ -34,6 +34,13 @@ def compute_cross_entropy(logits: torch.Tensor, targets: torch.Tensor, mask: tor
 	ce = ce / K
 	return ce, ce_per_codebook
 
+def compute_ortho_loss(emb_matrix: torch.Tensor)->torch.Tensor:
+	G = torch.matmul(emb_matrix, emb_matrix.T)
+	G=G/G.norm(dim=1, keepdim=True)
+	identity = torch.eye(G.size(0), device=G.device)
+	off_diag = G * (1 - identity)
+	return torch.norm(off_diag, p='fro')**2
+
 def compute_contrastive_loss_with_labels(
 		logits: torch.Tensor,
 		labels: torch.Tensor,
@@ -81,4 +88,5 @@ def compute_contrastive_loss_with_labels(
 	contrastive_loss = torch.mean(positive_loss + negative_loss)
 
 	return contrastive_loss
+
 
