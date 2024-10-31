@@ -23,6 +23,8 @@ protobuf = "3.20.*"
 tensorboard = "^2.18.0"
 tools = {path='../tools'}
 pytorch-metric-learning = "^2.6.0"
+audioldm-eval = {git = "https://github.com/haoheliu/audioldm_eval"}
+resampy = "^0.4.3"
 
 
 [build-system]
