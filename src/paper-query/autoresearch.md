@@ -1,5 +1,47 @@
 # Research Papers Summary
 
+## MoTaDual: Modality-Task Dual Alignment for Enhanced Zero-shot Composed  Image Retrieval
+
+- **ID**: http://arxiv.org/abs/2410.23736v1
+- **Published**: 2024-10-31 08:49:05
+- **Authors**: Haiwen Li, Fei Su, Zhicheng Zhao
+- **Categories**: , 
+
+### GPT Summary
+This paper presents a novel two-stage framework for zero-shot composed image retrieval (ZS-CIR) that effectively addresses task and modality discrepancies, achieving state-of-the-art results with reduced computational costs. The framework utilizes a textual inversion network and introduces Modality-Task Dual Alignment (MoTaDual) for improved performance across multiple benchmarks.
+
+### New Contributions
+The introduction of MoTaDual, which combines large-language models for triplet generation and prompt learning in a multi-modal context, significantly improves the efficiency and accuracy of zero-shot image retrieval while minimizing the need for labeled data.
+
+### Tags
+zero-shot learning,  composed image retrieval,  modality alignment,  textual inversion,  multi-modal learning,  feature extraction,  large-language models,  prompt learning,  task discrepancy,  image-text retrieval
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2410.23736v1)
+
+---
+
+## Multi-Class Textual-Inversion Secretly Yields a Semantic-Agnostic  Classifier
+
+- **ID**: http://arxiv.org/abs/2410.22317v1
+- **Published**: 2024-10-29 17:55:02
+- **Authors**: Kai Wang, Fei Yang, Bogdan Raducanu, Joost van de Weijer
+- **Categories**: 
+
+### GPT Summary
+This paper introduces Multi-Class Textual Inversion (MC-TI), a novel method that enhances the capabilities of Text-to-Image models for semantic-agnostic classification while preserving their generative abilities, using only a few samples per category.
+
+### New Contributions
+The paper presents the MC-TI technique that incorporates a discriminative regularization term to improve the performance of tokens learned through single-concept textual inversion, resulting in better outcomes for both classification and generation across multiple datasets.
+
+### Tags
+Textual Inversion,  Semantic-Agnostic Classification,  Multi-Class Learning,  Generative Models,  Discriminative Regularization,  Vision-Language Models,  CLIP,  Text-to-Image Personalization,  Concept Learning
+
+### PDF Link
+[Link](http://arxiv.org/pdf/2410.22317v1)
+
+---
+
 ## LEAD: Latent Realignment for Human Motion Diffusion
 
 - **ID**: http://arxiv.org/abs/2410.14508v1
