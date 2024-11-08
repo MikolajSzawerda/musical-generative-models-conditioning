@@ -25,6 +25,10 @@ tools = {path='../tools'}
 pytorch-metric-learning = "^2.6.0"
 audioldm-eval = {git = "https://github.com/haoheliu/audioldm_eval"}
 resampy = "^0.4.3"
+audiomentations = "^0.37.0"
+lightning = "^2.4.0"
+hydra-core = "^1.3.2"
+huggingface-hub = {extras = ["cli"], version = "^0.26.2"}
 
 
 [build-system]
