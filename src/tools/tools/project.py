@@ -35,3 +35,5 @@ LOGS_PATH = CallableString(os.path.join(PROJECT_ROOT, 'logs'))
 MODELS_PATH = CallableString(os.path.join(PROJECT_ROOT, 'models'))
 SCRIPTS_PATH = CallableString(os.path.join(PROJECT_ROOT, 'scripts'))
 
+REL_PATH = lambda (path, start): os.path.relpath(path, start=start)
+
