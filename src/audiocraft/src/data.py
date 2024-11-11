@@ -5,6 +5,9 @@ from datasets import Audio, load_dataset
 from datasets import load_dataset
 from random import choice
 import tqdm
+from torch.utils.data import DataLoader, default_collate
+import pytorch_lightning as L
+
 
 train_desc = [
     "the sound of %s",
@@ -94,8 +97,8 @@ val_desc = [
 
 def get_ds():
     return load_dataset('json', data_files={
-                'valid': INPUT_PATH('textual-inversion-v2', 'metadata_val.json'),
-                'train': INPUT_PATH('textual-inversion-v2', 'metadata_train.json')
+                'valid': INPUT_PATH('textual-inversion-v3', 'metadata_val.json'),
+                'train': INPUT_PATH('textual-inversion-v3', 'metadata_train.json')
                 })
 
 class TokensProvider:
@@ -124,11 +127,10 @@ class ConceptDataset(torch.utils.data.Dataset):
             self.base_dir = os.path.dirname(self.ds.cache_files[0]["filename"])
         else:
             raise ValueError("No cache files found in the dataset")
-        self.base_dir = INPUT_PATH('textual-inversion-v2')
+        self.base_dir = INPUT_PATH('textual-inversion-v3')
 
         if split == 'valid':
             def map_path(x):
-                x['audio_path'] = os.path.join(self.base_dir, x['audio_path'])
                 x['audio'] = os.path.join(self.base_dir, x['audio_path'])
                 return x
             self.ds = self.ds.map(map_path).cast_column('audio', Audio(sampling_rate=sr))
@@ -151,19 +153,19 @@ class ConceptDataset(torch.utils.data.Dataset):
         
         if self.music_len <= k:
             start_col = torch.randint(0, k - self.music_len + 1, (1,)).item()
-            return tensor[:, start_col:start_col + self.music_len]
+            return tensor[:, start_col:start_col + self.music_len].detach()
         else:
             padding = torch.zeros((n, self.music_len - k), device=tensor.device)
-            return torch.cat((tensor, padding), dim=1)
-    
+            return torch.cat((tensor, padding), dim=1).detach()
+
     def __getitem__(self, idx):
         row = self.ds[idx]
         path = row['encoded_path']
         if path not in self.encoded:
-            self.encoded[path] = torch.load(os.path.join(self.base_dir, path)).squeeze()
+            self.encoded[path] = torch.load(os.path.join(self.base_dir, path)).squeeze().detach()
         y = path.replace("\\", "").split('/')[2]
         if y not in self.tokens_ids:
-            self.tokens_ids[y] = self.tokenizer.convert_tokens_to_ids(self.tokens_provider.get(y))
+            self.tokens_ids[y] = self.tokenizer.convert_tokens_to_ids(list(self.tokens_provider.get(y)))
         prompt = self.prompter.get(self.tokens_provider.get_str(y))
         # if prompt not in self.tokenized_prompts:
         #     self.tokenized_prompts[prompt] = self.tokenizer([prompt], return_tensors='pt', padding=True, add_special_tokens=False)
@@ -171,10 +173,10 @@ class ConceptDataset(torch.utils.data.Dataset):
             'encoded_music': self._random_slice(self.encoded[path]),
             'prompt': prompt,
             'new_token_ids': self.tokens_ids[y],
-            **({} if self.split == 'train' else 
-                {
-                    'audio': row['audio_path']['array']
-                })
+            # **({} if self.split == 'train' else 
+            #     {
+            #         'audio': row['audio']['array']
+            #     })
         }
     
     def _get_concepts(self):
@@ -198,7 +200,42 @@ class ConceptDataset(torch.utils.data.Dataset):
     def get_new_tokens_ids(self) -> set[int]:
         return self.tokenizer.convert_tokens_to_ids(self.get_new_tokens())
 
-if __name__ == '__main__':
-    dl = torch.utils.data.DataLoader(ConceptDataset('valid'), batch_size=2)
-    for batch in tqdm.tqdm(dl):
-        print(batch)
+class ConceptDataModule(L.LightningDataModule):
+    def __init__(self, tokenizer, tokens_num:int=5, music_len: int = 255, batch_size: int = 5):
+        super().__init__()
+        self.tokens_num = tokens_num
+        self.music_len = music_len
+        self.batch_size = batch_size
+        self.tokenizer = tokenizer
+
+    def prepare_data(self) -> None:
+        get_ds()
+    
+    def setup(self, stage: str):
+        print(stage)
+        ds = get_ds()
+        self.train_ds = ConceptDataset(ds['train'], self.tokenizer, 'train', tokens_num=self.tokens_num, music_len=self.music_len)
+        self.val_ds = ConceptDataset(ds['valid'], self.tokenizer, 'valid', tokens_num=self.tokens_num, music_len=self.music_len)
+    
+    def get_new_tokens(self)->list[str]:
+        new_tokens = self.train_ds.get_new_tokens()
+        new_tokens.update(self.val_ds.get_new_tokens())
+        return list(new_tokens)
+    
+    def collate_fn(self, batch):
+        prompts = [item['prompt'] for item in batch]
+        tokenized_prompts = self.tokenizer(prompts, return_tensors='pt', padding=True, add_special_tokens=False)
+        for i, item in enumerate(batch):
+            item['tokenized_prompt'] = {
+                'input_ids': tokenized_prompts['input_ids'][i],
+                'attention_mask': tokenized_prompts['attention_mask'][i],
+            }
+        collated_batch = default_collate(batch)
+        collated_batch['batch_tokens'] = torch.unique(torch.cat(collated_batch['new_token_ids']))
+        return collated_batch
+    
+    def train_dataloader(self) -> DataLoader:
+        return DataLoader(self.train_ds, batch_size=self.batch_size, collate_fn=self.collate_fn)
+    
+    def val_dataloader(self) -> DataLoader:
+        return DataLoader(self.val_ds, batch_size=self.batch_size, collate_fn=self.collate_fn)
