@@ -7,7 +7,7 @@ from random import choice
 import tqdm
 from torch.utils.data import DataLoader, default_collate
 import pytorch_lightning as L
-
+from copy import deepcopy
 
 train_desc = [
     "the sound of %s",
@@ -95,6 +95,8 @@ val_desc = [
     "audio format of %s"
 ]
 
+NUM_WORKERS = 2
+
 def get_ds():
     return load_dataset('json', data_files={
                 'valid': INPUT_PATH('textual-inversion-v3', 'metadata_val.json'),
@@ -119,31 +121,28 @@ class PromptProvider:
         return choice(self.template) % args
 
 class ConceptDataset(torch.utils.data.Dataset):
-    def __init__(self, ds, tokenizer, split: str, sr: int=32000, tokens_num: int=1, music_len: int=100):
+    def __init__(self, ds, new_tokens_ids, split: str, tokens_provider, sr: int=32000, music_len: int=100):
         self.ds = ds
-        self.tokenizer = tokenizer
-
         if self.ds.cache_files:
             self.base_dir = os.path.dirname(self.ds.cache_files[0]["filename"])
         else:
             raise ValueError("No cache files found in the dataset")
         self.base_dir = INPUT_PATH('textual-inversion-v3')
 
-        if split == 'valid':
-            def map_path(x):
-                x['audio'] = os.path.join(self.base_dir, x['audio_path'])
-                return x
-            self.ds = self.ds.map(map_path).cast_column('audio', Audio(sampling_rate=sr))
+        # if split == 'valid':
+        #     def map_path(x):
+        #         x['audio'] = os.path.join(self.base_dir, x['audio_path'])
+        #         return x
+        #     self.ds = self.ds.map(map_path).cast_column('audio', Audio(sampling_rate=sr))
 
         self.encoded = {}
-        self.tokens_num = tokens_num
         self.prompter = PromptProvider(val_desc if split == 'valid' else train_desc)
-        self.tokens_provider = TokensProvider(tokens_num)
+        self.tokens_provider = tokens_provider
         self.music_len = music_len
         self.split = split
         self.concpets = None
         self.tokenized_prompts = {}
-        self.tokens_ids = {}
+        self.tokens_ids = new_tokens_ids
     
     def __len__(self):
         return len(self.ds)
@@ -161,18 +160,12 @@ class ConceptDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         row = self.ds[idx]
         path = row['encoded_path']
-        if path not in self.encoded:
-            self.encoded[path] = torch.load(os.path.join(self.base_dir, path)).squeeze().detach()
-        y = path.replace("\\", "").split('/')[2]
-        if y not in self.tokens_ids:
-            self.tokens_ids[y] = self.tokenizer.convert_tokens_to_ids(list(self.tokens_provider.get(y)))
-        prompt = self.prompter.get(self.tokens_provider.get_str(y))
-        # if prompt not in self.tokenized_prompts:
-        #     self.tokenized_prompts[prompt] = self.tokenizer([prompt], return_tensors='pt', padding=True, add_special_tokens=False)
+        concept = row['concept']
         return {
-            'encoded_music': self._random_slice(self.encoded[path]),
-            'prompt': prompt,
-            'new_token_ids': self.tokens_ids[y],
+            'encoded_music': self._random_slice(torch.load(os.path.join(self.base_dir, path)).squeeze()),
+            'concept': concept,
+            'prompt': self.prompter.get(self.tokens_provider.get_str(concept)),
+            'new_tokens_ids': self.tokens_ids[concept]
             # **({} if self.split == 'train' else 
             #     {
             #         'audio': row['audio']['array']
@@ -200,42 +193,34 @@ class ConceptDataset(torch.utils.data.Dataset):
     def get_new_tokens_ids(self) -> set[int]:
         return self.tokenizer.convert_tokens_to_ids(self.get_new_tokens())
 
+def collate_fn(batch):
+    collated_batch = default_collate(batch)
+    collated_batch['batch_tokens'] = torch.unique(torch.cat(collated_batch['new_tokens_ids']))
+    return collated_batch
+
 class ConceptDataModule(L.LightningDataModule):
-    def __init__(self, tokenizer, tokens_num:int=5, music_len: int = 255, batch_size: int = 5):
+    def __init__(self, tokens_provider, tokens_ids, music_len: int = 255, batch_size: int = 5):
         super().__init__()
-        self.tokens_num = tokens_num
+        self.tokens_provider = tokens_provider
+        self.tokens_ids = tokens_ids
         self.music_len = music_len
         self.batch_size = batch_size
-        self.tokenizer = tokenizer
-
+    
     def prepare_data(self) -> None:
         get_ds()
-    
+   
     def setup(self, stage: str):
-        print(stage)
         ds = get_ds()
-        self.train_ds = ConceptDataset(ds['train'], self.tokenizer, 'train', tokens_num=self.tokens_num, music_len=self.music_len)
-        self.val_ds = ConceptDataset(ds['valid'], self.tokenizer, 'valid', tokens_num=self.tokens_num, music_len=self.music_len)
+        self.train_ds = ConceptDataset(ds['train'], self.tokens_ids,'train', self.tokens_provider, music_len=self.music_len)
+        self.val_ds = ConceptDataset(ds['valid'], self.tokens_ids, 'valid', self.tokens_provider, music_len=self.music_len)
     
     def get_new_tokens(self)->list[str]:
         new_tokens = self.train_ds.get_new_tokens()
         new_tokens.update(self.val_ds.get_new_tokens())
         return list(new_tokens)
     
-    def collate_fn(self, batch):
-        prompts = [item['prompt'] for item in batch]
-        tokenized_prompts = self.tokenizer(prompts, return_tensors='pt', padding=True, add_special_tokens=False)
-        for i, item in enumerate(batch):
-            item['tokenized_prompt'] = {
-                'input_ids': tokenized_prompts['input_ids'][i],
-                'attention_mask': tokenized_prompts['attention_mask'][i],
-            }
-        collated_batch = default_collate(batch)
-        collated_batch['batch_tokens'] = torch.unique(torch.cat(collated_batch['new_token_ids']))
-        return collated_batch
-    
     def train_dataloader(self) -> DataLoader:
-        return DataLoader(self.train_ds, batch_size=self.batch_size, collate_fn=self.collate_fn)
+        return DataLoader(self.train_ds, batch_size=self.batch_size, collate_fn=collate_fn, num_workers=NUM_WORKERS, persistent_workers=True)
     
     def val_dataloader(self) -> DataLoader:
-        return DataLoader(self.val_ds, batch_size=self.batch_size, collate_fn=self.collate_fn)
+        return DataLoader(self.val_ds, batch_size=self.batch_size, collate_fn=collate_fn, num_workers=NUM_WORKERS, persistent_workers=True)
