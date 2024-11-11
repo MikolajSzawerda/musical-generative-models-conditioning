@@ -18,7 +18,7 @@ from audiocraft.models import MusicGen
 from audiocraft.data.audio import audio_read, audio_write
 from audioldm_eval.metrics.fad import FrechetAudioDistance
 
-EXAMPLES_LEN = 5
+EXAMPLES_LEN = 10
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else 'cpu')
 
 class TransformerTextualInversion(L.LightningModule):
@@ -57,6 +57,7 @@ class TransformerTextualInversion(L.LightningModule):
 
     def forward(self, encoded_music, prompts):
         tokenized_prompt = tokenizer(prompts, return_tensors='pt', padding=True, add_special_tokens=False)
+        tokenized_prompt = {k: v.to(DEVICE) for k,v in tokenized_prompt.items()}
         mask = tokenized_prompt['attention_mask']
         with self.music_model_conditioner.autocast and torch.set_grad_enabled(True):
             x_e = self.text_model(**tokenized_prompt).last_hidden_state
@@ -95,7 +96,7 @@ class TransformerTextualInversion(L.LightningModule):
                 []
                 )
 class GenEvalCallback(L.Callback):
-    def __init__(self, generation_concepts, fad, n_epochs=10):
+    def __init__(self, generation_concepts, fad, n_epochs=100):
         super().__init__()
         self.n_epochs = n_epochs
         self.concepts = generation_concepts
@@ -105,17 +106,17 @@ class GenEvalCallback(L.Callback):
         if (trainer.current_epoch+1) % self.n_epochs == 0:
             print(f"Generation time at epoch {trainer.current_epoch + 1}")
             for concept in self.concepts:
-                response = pl_module.music_model.generate([f'In the style of {TokensProvider(5).get_str(concept)}']*3)
+                response = pl_module.music_model.generate([f'In the style of {TokensProvider(5).get_str(concept)}']*5)
                 for a_idx in range(response.shape[0]):
                     music = response[a_idx].cpu()
                     music = music/np.max(np.abs(music.numpy()))
                     path = OUTPUT_PATH("textual-inversion-v3", concept, 'temp', f'music_p{a_idx}')
                     audio_write(path, music, pl_module.music_model.cfg.sample_rate)
                     pl_module.logger.experiment.add_audio(f"{concept} {a_idx}", music, trainer.global_step, sample_rate=pl_module.music_model.cfg.sample_rate)
-                with contextlib.redirect_stdout(io.StringIO()):
-                    fd_score = self.fad.score(INPUT_PATH('textual-inversion-v3', 'data', 'valid', f'{concept}', 'audio'), OUTPUT_PATH("textual-inversion-v3", concept, 'temp'))
-                    os.remove(OUTPUT_PATH("textual-inversion-v3", concept, 'temp_fad_feature_cache.npy'))
-                    pl_module.log(f'FAD {concept}', list(fd_score.values())[0])
+                # with contextlib.redirect_stdout(io.StringIO()):
+                #     fd_score = self.fad.score(INPUT_PATH('textual-inversion-v3', 'data', 'valid', f'{concept}', 'audio'), OUTPUT_PATH("textual-inversion-v3", concept, 'temp'))
+                #     os.remove(OUTPUT_PATH("textual-inversion-v3", concept, 'temp_fad_feature_cache.npy'))
+                #     pl_module.log(f'FAD {concept}', list(fd_score.values())[0])
 
 def get_new_concepts():
     ds = get_ds()
@@ -137,7 +138,7 @@ def append_new_tokens(tokenizer, tokens_by_concept):
 if __name__ == '__main__':
 
     concepts_to_learn = get_new_concepts()
-    concepts_to_learn = ['cluster_0'] 
+    concepts_to_learn = ['cluster_2', 'cluster_10'] 
     ds = get_ds().filter(lambda x: x['concept'] in concepts_to_learn)
 
     tokens_provider = TokensProvider(5)
@@ -157,8 +158,8 @@ if __name__ == '__main__':
     text_model.resize_token_embeddings(len(tokenizer))
 
     fad = FrechetAudioDistance()
-    dm = ConceptDataModule(ds, tokens_provider, tokens_ids_by_concept, music_len=255)
-    model = TransformerTextualInversion(text_model, tokenizer, music_model, text_conditioner, tokens_ids)
+    dm = ConceptDataModule(ds, tokens_provider, tokens_ids_by_concept, music_len=255*2)
+    model = TransformerTextualInversion(text_model, tokenizer, music_model, text_conditioner, tokens_ids, grad_amplify=1.0)
     tb_logger = L.loggers.TensorBoardLogger(LOGS_PATH, name='textual-inversion-v3')
-    trainer = L.Trainer(accelerator='cpu', callbacks=[GenEvalCallback(['cluster_0'], fad)], enable_checkpointing=False, logger=tb_logger, log_every_n_steps=10)
+    trainer = L.Trainer(callbacks=[GenEvalCallback(concepts_to_learn, fad)], enable_checkpointing=False, logger=tb_logger, log_every_n_steps=10)
     trainer.fit(model, dm)
