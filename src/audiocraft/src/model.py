@@ -95,7 +95,7 @@ class TransformerTextualInversion(L.LightningModule):
                 []
                 )
 class GenEvalCallback(L.Callback):
-    def __init__(self, generation_concepts, fad, n_epochs=2):
+    def __init__(self, generation_concepts, fad, n_epochs=10):
         super().__init__()
         self.n_epochs = n_epochs
         self.concepts = generation_concepts
@@ -137,6 +137,8 @@ def append_new_tokens(tokenizer, tokens_by_concept):
 if __name__ == '__main__':
 
     concepts_to_learn = get_new_concepts()
+    concepts_to_learn = ['cluster_0'] 
+    ds = get_ds().filter(lambda x: x['concept'] in concepts_to_learn)
 
     tokens_provider = TokensProvider(5)
     tokens_by_concept = {concept: list(tokens_provider.get(concept)) for concept in concepts_to_learn}
@@ -155,7 +157,7 @@ if __name__ == '__main__':
     text_model.resize_token_embeddings(len(tokenizer))
 
     fad = FrechetAudioDistance()
-    dm = ConceptDataModule(tokens_provider, tokens_ids_by_concept, music_len=255)
+    dm = ConceptDataModule(ds, tokens_provider, tokens_ids_by_concept, music_len=255)
     model = TransformerTextualInversion(text_model, tokenizer, music_model, text_conditioner, tokens_ids)
     tb_logger = L.loggers.TensorBoardLogger(LOGS_PATH, name='textual-inversion-v3')
     trainer = L.Trainer(accelerator='cpu', callbacks=[GenEvalCallback(['cluster_0'], fad)], enable_checkpointing=False, logger=tb_logger, log_every_n_steps=10)

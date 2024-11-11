@@ -199,20 +199,17 @@ def collate_fn(batch):
     return collated_batch
 
 class ConceptDataModule(L.LightningDataModule):
-    def __init__(self, tokens_provider, tokens_ids, music_len: int = 255, batch_size: int = 5):
+    def __init__(self, ds, tokens_provider, tokens_ids, music_len: int = 255, batch_size: int = 5):
         super().__init__()
         self.tokens_provider = tokens_provider
         self.tokens_ids = tokens_ids
         self.music_len = music_len
         self.batch_size = batch_size
-    
-    def prepare_data(self) -> None:
-        get_ds()
+        self.ds = ds
    
     def setup(self, stage: str):
-        ds = get_ds()
-        self.train_ds = ConceptDataset(ds['train'], self.tokens_ids,'train', self.tokens_provider, music_len=self.music_len)
-        self.val_ds = ConceptDataset(ds['valid'], self.tokens_ids, 'valid', self.tokens_provider, music_len=self.music_len)
+        self.train_ds = ConceptDataset(self.ds['train'], self.tokens_ids,'train', self.tokens_provider, music_len=self.music_len)
+        self.val_ds = ConceptDataset(self.ds['valid'], self.tokens_ids, 'valid', self.tokens_provider, music_len=self.music_len)
     
     def get_new_tokens(self)->list[str]:
         new_tokens = self.train_ds.get_new_tokens()
