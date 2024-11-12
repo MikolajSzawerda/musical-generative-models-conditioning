@@ -154,11 +154,12 @@ class ConceptDataset(torch.utils.data.Dataset):
             start_col = torch.randint(0, k - self.music_len + 1, (1,)).item()
             return tensor[:, start_col:start_col + self.music_len].detach()
         else:
-            padding = torch.zeros((n, self.music_len - k), device=tensor.device)
+            padding = torch.zeros((n, self.music_len - k), device=tensor.device, dtype=torch.int64)
             return torch.cat((tensor, padding), dim=1).detach()
 
     def __getitem__(self, idx):
-        row = self.ds[idx]
+        true_idx = idx
+        row = self.ds[true_idx]
         path = row['encoded_path']
         concept = row['concept']
         return {

@@ -18,14 +18,15 @@ from audiocraft.models import MusicGen
 from audiocraft.data.audio import audio_read, audio_write
 from audioldm_eval.metrics.fad import FrechetAudioDistance
 
-EXAMPLES_LEN = 10
+EXAMPLES_LEN = 5
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else 'cpu')
 
 class TransformerTextualInversion(L.LightningModule):
     def __init__(self, text_model, tokenizer, music_model, music_model_conditioner, token_ids, 
                  grad_amplify: float=10.0,
                  entropy_alpha: float=1e1,
-                 ortho_alpha: float=1e-2
+                 ortho_alpha: float=1e-2,
+                 lr: float=1e-1
                  ):
         super().__init__()
         # self.save_hyperparameters()  # Saves all init arguments to the checkpoint
@@ -38,6 +39,8 @@ class TransformerTextualInversion(L.LightningModule):
         self.music_model = music_model
         self.token_ids = token_ids
         self.music_model_conditioner = music_model_conditioner
+        self.lr = lr
+        self.prev_grad = 0
 
         
     def _init_text_model(self):
@@ -48,17 +51,22 @@ class TransformerTextualInversion(L.LightningModule):
             mask = torch.zeros_like(grad)
             for new_token_id in self.token_ids:
                 mask[new_token_id] = self.grad_amplify
+            self.prev_grad =  (grad * (1-(mask / self.grad_amplify))).norm().item()
             return grad * mask
 
         self.text_model.shared.weight.register_hook(zero_existing_emb)
         
     def on_train_start(self):
+        self.music_model.lm.requires_grad_(True)
+        self.text_model.requires_grad_(True)
+        self.music_model_conditioner.finetune=True
         self._init_text_model()
 
     def forward(self, encoded_music, prompts):
         tokenized_prompt = tokenizer(prompts, return_tensors='pt', padding=True, add_special_tokens=False)
         tokenized_prompt = {k: v.to(DEVICE) for k,v in tokenized_prompt.items()}
         mask = tokenized_prompt['attention_mask']
+        # print("SHAPE:", encoded_music)
         with self.music_model_conditioner.autocast and torch.set_grad_enabled(True):
             x_e = self.text_model(**tokenized_prompt).last_hidden_state
         x_e = self.music_model_conditioner.output_proj(x_e.to(self.music_model_conditioner.output_proj.weight))
@@ -68,17 +76,23 @@ class TransformerTextualInversion(L.LightningModule):
         return x
     
     def on_before_optimizer_step(self, optimizer):
-        grad_norm = text_model.shared.weight[self.token_ids].norm().item()
-        self.log('grad_norm', grad_norm, on_step=True, prog_bar=True)
+        self.log('prev_grad', self.prev_grad, on_epoch=True, prog_bar=True)
+
+        grad_norm = self.text_model.shared.weight.grad[self.token_ids].norm().item()
+        self.log('grad_norm', grad_norm, on_epoch=True, prog_bar=True)
 
     def training_step(self, batch, batch_idx):
+        self.music_model.lm.requires_grad_(True)
+        self.text_model.requires_grad_(True)
+        self.music_model_conditioner.finetune=True
+
         music, prompt = batch['encoded_music'], batch['prompt']
         out = self(music, prompt)
         ce_loss, _ = compute_cross_entropy(out.logits, music, out.mask)
         ortho_loss = compute_ortho_loss(self.text_model.shared.weight[batch['batch_tokens']])
-        loss = self.entropy_alpha * ce_loss + self.ortho_alpha * ortho_loss
-        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
-        self.log("ortho_loss", ortho_loss, on_step=True, on_epoch=True, prog_bar=True)
+        loss = self.entropy_alpha * ce_loss + self.ortho_alpha * ortho_loss + self.prev_grad*1e-2
+        self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("ortho_loss", ortho_loss, on_step=False, on_epoch=True, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -90,13 +104,13 @@ class TransformerTextualInversion(L.LightningModule):
 
     def configure_optimizers(self):
         # Optimizer and learning rate scheduler setup
-        optimizer = Adam([self.text_model.shared.weight], lr=1e-1)
+        optimizer = Adam([self.text_model.shared.weight], lr=self.lr)
         # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
         return ([optimizer], 
                 []
                 )
 class GenEvalCallback(L.Callback):
-    def __init__(self, generation_concepts, fad, n_epochs=100):
+    def __init__(self, generation_concepts, fad, n_epochs=10):
         super().__init__()
         self.n_epochs = n_epochs
         self.concepts = generation_concepts
@@ -106,17 +120,19 @@ class GenEvalCallback(L.Callback):
         if (trainer.current_epoch+1) % self.n_epochs == 0:
             print(f"Generation time at epoch {trainer.current_epoch + 1}")
             for concept in self.concepts:
-                response = pl_module.music_model.generate([f'In the style of {TokensProvider(5).get_str(concept)}']*5)
+                response = pl_module.music_model.generate([f'In the style of {TokensProvider(20).get_str(concept)}']*5)
                 for a_idx in range(response.shape[0]):
                     music = response[a_idx].cpu()
                     music = music/np.max(np.abs(music.numpy()))
                     path = OUTPUT_PATH("textual-inversion-v3", concept, 'temp', f'music_p{a_idx}')
                     audio_write(path, music, pl_module.music_model.cfg.sample_rate)
                     pl_module.logger.experiment.add_audio(f"{concept} {a_idx}", music, trainer.global_step, sample_rate=pl_module.music_model.cfg.sample_rate)
-                # with contextlib.redirect_stdout(io.StringIO()):
-                #     fd_score = self.fad.score(INPUT_PATH('textual-inversion-v3', 'data', 'valid', f'{concept}', 'audio'), OUTPUT_PATH("textual-inversion-v3", concept, 'temp'))
-                #     os.remove(OUTPUT_PATH("textual-inversion-v3", concept, 'temp_fad_feature_cache.npy'))
-                #     pl_module.log(f'FAD {concept}', list(fd_score.values())[0])
+                with contextlib.redirect_stdout(io.StringIO()):
+                    fd_score = self.fad.score(INPUT_PATH('textual-inversion-v3', 'data', 'valid', f'{concept}', 'audio'), OUTPUT_PATH("textual-inversion-v3", concept, 'temp'))
+                    os.remove(OUTPUT_PATH("textual-inversion-v3", concept, 'temp_fad_feature_cache.npy'))
+                    if isinstance(fd_score, int):
+                        return
+                    pl_module.log(f'FAD {concept}', list(fd_score.values())[0])
 
 def get_new_concepts():
     ds = get_ds()
@@ -138,10 +154,10 @@ def append_new_tokens(tokenizer, tokens_by_concept):
 if __name__ == '__main__':
 
     concepts_to_learn = get_new_concepts()
-    concepts_to_learn = ['cluster_2', 'cluster_10'] 
+    concepts_to_learn = ['ajfa'] 
     ds = get_ds().filter(lambda x: x['concept'] in concepts_to_learn)
 
-    tokens_provider = TokensProvider(5)
+    tokens_provider = TokensProvider(20)
     tokens_by_concept = {concept: list(tokens_provider.get(concept)) for concept in concepts_to_learn}
 
     music_model = MusicGen.get_pretrained('facebook/musicgen-small')
@@ -158,8 +174,8 @@ if __name__ == '__main__':
     text_model.resize_token_embeddings(len(tokenizer))
 
     fad = FrechetAudioDistance()
-    dm = ConceptDataModule(ds, tokens_provider, tokens_ids_by_concept, music_len=255*2)
-    model = TransformerTextualInversion(text_model, tokenizer, music_model, text_conditioner, tokens_ids, grad_amplify=1.0)
+    dm = ConceptDataModule(ds, tokens_provider, tokens_ids_by_concept, music_len=255, batch_size=5)
+    model = TransformerTextualInversion(text_model, tokenizer, music_model, text_conditioner, tokens_ids, grad_amplify=10.0, lr=1e-1, ortho_alpha=1e-2)
     tb_logger = L.loggers.TensorBoardLogger(LOGS_PATH, name='textual-inversion-v3')
     trainer = L.Trainer(callbacks=[GenEvalCallback(concepts_to_learn, fad)], enable_checkpointing=False, logger=tb_logger, log_every_n_steps=10)
     trainer.fit(model, dm)
