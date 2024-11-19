@@ -1,0 +1,19 @@
+- Temat
+- Czym jest muzyka
+- Reprezentacje muzyki: sample, symboliczne, obrazowe(spectrogramy)
+- Generowanie muzyki: symboliczne-komponowanie; audio-synteza dźwięku
+- Metryki generacji: FAD, KLL, CLAP
+- Warunkowana synteza audio:
+  - parametryczna: markov chain, JukeBox(VQ-VAE), Magenta(RNN/LSTM->sequence, VAE/GAN/NSynth->audio synthesis)
+  - prompt based: Mustango(diffusion), MusicGen(transformer)
+  - video based: FoleyMusic(custom)
+- MusicGen -> czym warunkowany, architektura
+- Eksperymenty:
+  - Textual inversion: wyjaśnienie metody
+  - data set, stworzenie: użyte zbiory, klastrowanie po clap, descxription embeding, text, usuwanie audio, hg dataset
+  - funkcja straty <- wprowadzone zmiany
+  - wykresy z uczenia
+  - rezultaty
+- Dalsze plany:
+  - ewaluacja innych metod
+  - stworzenie systemu do warunkowania generacji
