@@ -47,11 +47,17 @@ def extend_current(data):
     with open(INPUT_PATH('textual-inversion-v3', name), 'w') as fh:
         json.dump(fdata, fh, indent=4, ensure_ascii=False)
 
+def clean_directory(directory):
+    if directory.exists():
+        shutil.rmtree(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+
 if __name__ == '__main__':
     remove_current()
 
     concept, split= args.concept, args.split
     base_path = INPUT_PATH('textual-inversion-v3', 'data', split, concept)
+    clean_directory(Path(INPUT_PATH('textual-inversion-v3', "data", split, args.concept, 'encoded')))
     audio_files = [f.name for f in Path(os.path.join(base_path, 'audio')).iterdir() if f.is_file()]
     new_rows = []
     for filename in tqdm.tqdm(audio_files):

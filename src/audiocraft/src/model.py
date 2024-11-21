@@ -3,6 +3,7 @@ from util_tools import compute_cross_entropy, compute_ortho_loss
 from torch.utils.data import DataLoader, default_collate
 import tqdm
 import pytorch_lightning as L
+from pytorch_lightning.loggers import WandbLogger
 from datasets import load_dataset
 from tools.project import INPUT_PATH, LOGS_PATH, OUTPUT_PATH, MODELS_PATH
 import torch
@@ -12,6 +13,7 @@ import numpy as np
 import contextlib
 import io
 import os
+import wandb
 from data import TokensProvider, ConceptDataModule, get_ds, TokensProvider
 
 from audiocraft.models import MusicGen
@@ -117,16 +119,25 @@ class GenEvalCallback(L.Callback):
         self.fad = fad
 
     def on_validation_epoch_end(self, trainer, pl_module):
-        if (trainer.current_epoch+1) % self.n_epochs == 0:
+        if (trainer.current_epoch) % self.n_epochs == 0:
             print(f"Generation time at epoch {trainer.current_epoch + 1}")
             for concept in self.concepts:
                 response = pl_module.music_model.generate([f'In the style of {TokensProvider(20).get_str(concept)}']*5)
+                audio_list = []
                 for a_idx in range(response.shape[0]):
                     music = response[a_idx].cpu()
                     music = music/np.max(np.abs(music.numpy()))
                     path = OUTPUT_PATH("textual-inversion-v3", concept, 'temp', f'music_p{a_idx}')
                     audio_write(path, music, pl_module.music_model.cfg.sample_rate)
-                    pl_module.logger.experiment.add_audio(f"{concept} {a_idx}", music, trainer.global_step, sample_rate=pl_module.music_model.cfg.sample_rate)
+                    audio_list.append(
+                        wandb.Audio(
+                            path+'.wav', 
+                            sample_rate=pl_module.music_model.cfg.sample_rate, 
+                            caption=f"{concept} audio {a_idx}"
+                        )
+                    )
+                    # pl_module.logger.experiment.add_audio(f"{concept} {a_idx}", music, trainer.global_step, sample_rate=pl_module.music_model.cfg.sample_rate)
+                pl_module.logger.experiment.log({f"{concept}_audio": audio_list, "global_step": trainer.global_step})
                 with contextlib.redirect_stdout(io.StringIO()):
                     fd_score = self.fad.score(INPUT_PATH('textual-inversion-v3', 'data', 'valid', f'{concept}', 'audio'), OUTPUT_PATH("textual-inversion-v3", concept, 'temp'))
                     os.remove(OUTPUT_PATH("textual-inversion-v3", concept, 'temp_fad_feature_cache.npy'))
@@ -154,7 +165,7 @@ def append_new_tokens(tokenizer, tokens_by_concept):
 if __name__ == '__main__':
 
     concepts_to_learn = get_new_concepts()
-    concepts_to_learn = ['ajfa'] 
+    concepts_to_learn = ['ichika'] 
     ds = get_ds().filter(lambda x: x['concept'] in concepts_to_learn)
 
     tokens_provider = TokensProvider(20)
@@ -176,6 +187,7 @@ if __name__ == '__main__':
     fad = FrechetAudioDistance()
     dm = ConceptDataModule(ds, tokens_provider, tokens_ids_by_concept, music_len=255, batch_size=5)
     model = TransformerTextualInversion(text_model, tokenizer, music_model, text_conditioner, tokens_ids, grad_amplify=10.0, lr=1e-1, ortho_alpha=1e-2)
-    tb_logger = L.loggers.TensorBoardLogger(LOGS_PATH, name='textual-inversion-v3')
-    trainer = L.Trainer(callbacks=[GenEvalCallback(concepts_to_learn, fad)], enable_checkpointing=False, logger=tb_logger, log_every_n_steps=10)
+    # tb_logger = L.loggers.TensorBoardLogger(LOGS_PATH, name='textual-inversion-v3')
+    wandb_logger = WandbLogger(project='textual-inversion-v3', save_dir=LOGS_PATH)
+    trainer = L.Trainer(callbacks=[GenEvalCallback(concepts_to_learn, fad)], enable_checkpointing=False, logger=wandb_logger, log_every_n_steps=10)
     trainer.fit(model, dm)
