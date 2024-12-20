@@ -1,1 +1,1 @@
-yt-dlp --quiet --force-keyframes-at-cuts --no-warnings -x --audio-format wav -f bestaudio -o $1  $2
+yt-dlp --quiet --force-keyframes-at-cuts --no-warnings -x --audio-format mp3 -f bestaudio -o $1  $2
