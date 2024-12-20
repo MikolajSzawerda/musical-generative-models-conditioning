@@ -102,6 +102,8 @@ def get_ds():
                 'valid': INPUT_PATH('textual-inversion-v3', 'metadata_val.json'),
                 'train': INPUT_PATH('textual-inversion-v3', 'metadata_train.json')
                 })
+def get_hg_ds():
+    return load_dataset('mszawerd/concept-dataset')
 
 class TokensProvider:
     def __init__(self, num: int):

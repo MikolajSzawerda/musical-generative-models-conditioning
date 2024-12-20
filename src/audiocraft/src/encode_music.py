@@ -16,6 +16,7 @@ from audiocraft.data.audio import audio_read, audio_write
 from audiocraft.data.audio_utils import convert_audio_channels, convert_audio
 from pathlib import Path
 import uuid
+import shutil
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else 'cpu')
 model = MusicGen.get_pretrained('facebook/musicgen-small')
@@ -25,22 +26,22 @@ model.set_generation_params(
     duration=5
 )
 
-parser = argparse.ArgumentParser()
-parser.add_argument('-c', '--concept', required=True)
-parser.add_argument('-s', '--split', required=True)
-args=parser.parse_args()
+# parser = argparse.ArgumentParser()
+# parser.add_argument('-c', '--concept', required=True)
+# parser.add_argument('-s', '--split', required=True)
+# args=parser.parse_args()
 
-def remove_current():
-    name = 'metadata_train.json' if args.split == 'train' else 'metadata_val.json'
+def remove_current(concept, split):
+    name = 'metadata_train.json' if split == 'train' else 'metadata_val.json'
     with open(INPUT_PATH('textual-inversion-v3', name), 'r') as fh:
         data = json.load(fh)
-    filtered = [x for x in data if x.get('concept') != args.concept]
+    filtered = [x for x in data if x.get('concept') != concept]
     with open(INPUT_PATH('textual-inversion-v3', name), 'w') as fh:
         json.dump(filtered, fh, indent=4, ensure_ascii=False)
 
 
-def extend_current(data):
-    name = 'metadata_train.json' if args.split == 'train' else 'metadata_val.json'
+def extend_current(data, split):
+    name = 'metadata_train.json' if split == 'train' else 'metadata_val.json'
     with open(INPUT_PATH('textual-inversion-v3', name), 'r') as fh:
         fdata = json.load(fh)
     fdata.extend(data)
@@ -52,12 +53,11 @@ def clean_directory(directory):
         shutil.rmtree(directory)
     directory.mkdir(parents=True, exist_ok=True)
 
-if __name__ == '__main__':
-    remove_current()
-
-    concept, split= args.concept, args.split
+def encode(concept: str, split: str):
+    remove_current(concept, split)
+    # concept, split= args.concept, args.split
     base_path = INPUT_PATH('textual-inversion-v3', 'data', split, concept)
-    clean_directory(Path(INPUT_PATH('textual-inversion-v3', "data", split, args.concept, 'encoded')))
+    clean_directory(Path(INPUT_PATH('textual-inversion-v3', "data", split, concept, 'encoded')))
     audio_files = [f.name for f in Path(os.path.join(base_path, 'audio')).iterdir() if f.is_file()]
     new_rows = []
     for filename in tqdm.tqdm(audio_files):
@@ -77,4 +77,10 @@ if __name__ == '__main__':
             'concept': concept,
             'track_id': str(uuid.uuid4()),
         })
-    extend_current(new_rows)
+    extend_current(new_rows, split)
+
+if __name__ == '__main__':
+    concepts = ['8bit', 'ajfa', 'caravan', 'ichika', 'metal', 'oim', 'synthwave']
+    for split in ['valid']:
+        for concept in concepts:
+            encode(concept, split)
