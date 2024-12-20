@@ -123,7 +123,7 @@ class PromptProvider:
         return choice(self.template) % args
 
 class ConceptDataset(torch.utils.data.Dataset):
-    def __init__(self, ds, new_tokens_ids, split: str, tokens_provider, sr: int=32000, music_len: int=100):
+    def __init__(self, ds, new_tokens_ids, split: str, tokens_provider, sr: int=32000, music_len: int=100, pad_value: float=0.0):
         self.ds = ds
         if self.ds.cache_files:
             self.base_dir = os.path.dirname(self.ds.cache_files[0]["filename"])
@@ -145,6 +145,30 @@ class ConceptDataset(torch.utils.data.Dataset):
         self.concpets = None
         self.tokenized_prompts = {}
         self.tokens_ids = new_tokens_ids
+        self._preload_encoded(ds, pad_value)
+
+        
+    def _preload_encoded(self, ds, pad_value: float):
+        enc_cache = []
+        max_len = -1
+        for row in ds:
+            path = row['encoded_path']
+            encoded = torch.load(os.path.join(self.base_dir, path)).squeeze()
+            enc_cache.append(encoded)
+            max_len = max(max_len, encoded.shape[-1])
+        padded_list = []
+        for enc in enc_cache:
+            length = enc.shape[-1]
+            if length < max_len:
+                shape = list(enc.shape)
+                shape[-1] = max_len
+                padded = enc.new_full(shape, pad_value)
+                padded[..., :length] = enc
+                padded_list.append(padded)
+            else:
+                padded_list.append(enc)
+
+        self.encoded_musics = torch.stack(padded_list, dim=0).contiguous()
     
     def __len__(self):
         return len(self.ds)
@@ -162,10 +186,9 @@ class ConceptDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         true_idx = idx
         row = self.ds[true_idx]
-        path = row['encoded_path']
         concept = row['concept']
         return {
-            'encoded_music': self._random_slice(torch.load(os.path.join(self.base_dir, path)).squeeze()),
+            'encoded_music': self._random_slice(self.encoded_musics[idx]),
             'concept': concept,
             'prompt': self.prompter.get(self.tokens_provider.get_str(concept)),
             'new_tokens_ids': self.tokens_ids[concept]
@@ -220,7 +243,11 @@ class ConceptDataModule(L.LightningDataModule):
         return list(new_tokens)
     
     def train_dataloader(self) -> DataLoader:
-        return DataLoader(self.train_ds, batch_size=self.batch_size, collate_fn=collate_fn, num_workers=NUM_WORKERS, persistent_workers=True)
+        return DataLoader(self.train_ds, batch_size=self.batch_size, collate_fn=collate_fn, num_workers=NUM_WORKERS, persistent_workers=True, shuffle=True)
     
     def val_dataloader(self) -> DataLoader:
         return DataLoader(self.val_ds, batch_size=self.batch_size, collate_fn=collate_fn, num_workers=NUM_WORKERS, persistent_workers=True)
+
+if __name__ == '__main__':
+    ds = get_ds()['train']
+    cds = ConceptDataset(ds, None, 'train', None)
