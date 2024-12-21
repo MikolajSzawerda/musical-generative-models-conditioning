@@ -50,7 +50,7 @@ def run_exp(cfg, wandb_logger):
     dm = ConceptDataModule(ds, tokens_provider, tokens_ids_by_concept, music_len=255, batch_size=cfg.batch_size)
     model = TransformerTextualInversion(text_model, tokenizer, music_model, text_conditioner, tokens_ids, cfg.tokens_num, grad_amplify=cfg.grad_amp, lr=cfg.lr, ortho_alpha=cfg.ortho_alpha, entropy_alpha=cfg.entropy_alpha)
 
-    quick_save_cl = SaveEmbeddingsCallback(LOGS_PATH('embeds'), cfg.concepts, tokens_ids_by_concept, text_model.shared.weight)
+    quick_save_cl = SaveEmbeddingsCallback(MODELS_PATH('textual-inversion-v3'), cfg.concepts, tokens_ids_by_concept, text_model.shared.weight)
     early_stopping = L.callbacks.EarlyStopping(
         monitor="fad_avg",
         patience=41,
@@ -87,7 +87,7 @@ if __name__ == '__main__':
         with open(LOGS_PATH("sweep_config.yaml")) as f:
             sweep_config = yaml.safe_load(f)
         sweep_id = wandb.sweep(sweep=sweep_config, project='textual-inversion-v3')
-        wandb.agent(sweep_id, function=run_sweep_exp, count=15)
+        wandb.agent(sweep_id, function=run_sweep_exp, count=5)
     else:
         parser = ArgumentParser(parents=[init_parser])
         parser.add_argument("--examples-len", type=int, default=5)

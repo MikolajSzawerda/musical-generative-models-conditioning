@@ -112,9 +112,10 @@ class TransformerTextualInversion(L.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         music, prompt = batch['encoded_music'], batch['prompt']
-        out = self(music, prompt)
-        val_loss, _ = compute_cross_entropy(out.logits, music, out.mask)
-        self.log("val_loss", val_loss, prog_bar=True)
+        with torch.set_grad_enabled(False):
+            out = self(music, prompt)
+            val_loss, _ = compute_cross_entropy(out.logits, music, out.mask)
+            self.log("val_loss", val_loss, prog_bar=True)
         return val_loss
 
     def configure_optimizers(self):

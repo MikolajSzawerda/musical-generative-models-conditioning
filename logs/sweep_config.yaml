@@ -6,19 +6,18 @@ parameters:
   examples_len:
     value: 5
   batch_size:
-    value: 10
+    value: 20
   tokens_num:
-    values: [1, 5, 10, 20]
+    values: [1, 5, 10, 20, 50]
   grad_amp:
-    values: [1.0, 10.0, 50.0]
+    value: 10.0
   entropy_alpha:
-    values: [1.0, 2.0]
+    value: 1.0
   ortho_alpha:
-    values: [0.01, 0.1, 0.001]
+    value: 0.1
   lr:
-    values: [0.1, 0.01]
+    value: 0.1
   concepts:
-    value: ["8bit"]
+    value: ["8bit", "ajfa", "caravan", "ichika", "metal", "oim", "synthwave"]
   model:
-    value: "small"
-
+    value: "large"
