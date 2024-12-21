@@ -33,6 +33,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else 'cpu')
 
 class TransformerTextualInversion(L.LightningModule):
     def __init__(self, text_model, tokenizer, music_model, music_model_conditioner, token_ids, 
+                 tokens_num,
                  grad_amplify: float=10.0,
                  entropy_alpha: float=1e1,
                  ortho_alpha: float=1e-2,
@@ -51,6 +52,7 @@ class TransformerTextualInversion(L.LightningModule):
         self.music_model_conditioner = music_model_conditioner
         self.lr = lr
         self.prev_grad = 0
+        self.tokens_num = tokens_num
 
         
     def _init_text_model(self):
@@ -99,7 +101,7 @@ class TransformerTextualInversion(L.LightningModule):
         music, prompt = batch['encoded_music'], batch['prompt']
         out = self(music, prompt)
         ce_loss, _ = compute_cross_entropy(out.logits, music, out.mask)
-        if TOKENS_NUM > 1:
+        if self.tokens_num > 1:
             ortho_loss = compute_ortho_loss(self.text_model.shared.weight[batch['batch_tokens']])
             self.log("ortho_loss", ortho_loss, on_step=False, on_epoch=True, prog_bar=True)
         else:
@@ -122,40 +124,82 @@ class TransformerTextualInversion(L.LightningModule):
         return ([optimizer], 
                 []
                 )
+import librosa
+import librosa.display
+import numpy as np
+import matplotlib.pyplot as plt
+
 class GenEvalCallback(L.Callback):
-    def __init__(self, generation_concepts, fad, n_epochs=10):
+    def __init__(self, generation_concepts, fad, tokens_num, n_epochs=10):
         super().__init__()
         self.n_epochs = n_epochs
         self.concepts = generation_concepts
         self.fad = fad
+        self.tokens_num = tokens_num
+    
+    def _audio_to_spectrogram_image(self, audio, sr):
+        if audio.ndim > 1:
+            audio = np.squeeze(audio, axis=0)
+        S = librosa.feature.melspectrogram(y=audio, sr=sr, n_mels=128, fmax=sr/2)
+        S_dB = librosa.power_to_db(S, ref=np.max)
+        
+        # Plot the mel-spectrogram
+        fig, ax = plt.subplots(figsize=(6,4), dpi=150)
+        librosa.display.specshow(S_dB, x_axis='time', y_axis='mel', sr=sr, fmax=sr/2, ax=ax, cmap="magma")
+        ax.set_title('Mel-Spectrogram')
+        ax.set_xlabel("Time")
+        ax.set_ylabel("Mel Frequency")
+        
+        # Convert plot to numpy array
+        fig.canvas.draw()
+        spectrogram_image = np.array(fig.canvas.renderer.buffer_rgba())
+        plt.close(fig)
+        return spectrogram_image
 
     def on_validation_epoch_end(self, trainer, pl_module):
         if (trainer.current_epoch) % self.n_epochs != 0:
             return
         print(f"Generation time at epoch {trainer.current_epoch + 1}")
         for concept in self.concepts:
-            response = pl_module.music_model.generate([f'In the style of {TokensProvider(TOKENS_NUM).get_str(concept)}']*10)
+            response = pl_module.music_model.generate([f'In the style of {TokensProvider(self.tokens_num).get_str(concept)}']*10)
             audio_list = []
+            # table = wandb.Table(columns=["audio", "spectrogram"])
+            img_list = []
             for a_idx in range(response.shape[0]):
                 music = response[a_idx].cpu()
                 music = music/np.max(np.abs(music.numpy()))
                 path = OUTPUT_PATH("textual-inversion-v3", concept, 'temp', f'music_p{a_idx}')
                 audio_write(path, music, pl_module.music_model.cfg.sample_rate)
-                audio_list.append(
-                    wandb.Audio(
+
+                spectrogram = self._audio_to_spectrogram_image(music.numpy(), pl_module.music_model.cfg.sample_rate)
+                audio_wdb = wandb.Audio(
                         path+'.wav', 
                         sample_rate=pl_module.music_model.cfg.sample_rate, 
                         caption=f"{concept} audio {a_idx}"
                     )
+                spec_wdb = wandb.Image(spectrogram, caption=f"Spectrogram {a_idx}")
+                # table.add_data(audio_wdb, spec_wdb)
+                audio_list.append(
+                    audio_wdb
+                )
+                # table.add_data(audio_wdb, spec_wdb)
+                img_list.append(
+                    spec_wdb
                 )
                 # pl_module.logger.experiment.add_audio(f"{concept} {a_idx}", music, trainer.global_step, sample_rate=pl_module.music_model.cfg.sample_rate)
-            pl_module.logger.experiment.log({f"{concept}_audio": audio_list[:5], "global_step": trainer.global_step})
+            pl_module.logger.experiment.log({f"{concept}_audio": audio_list[:5], f"{concept}_spec": img_list[:5],"global_step": trainer.global_step})
+            # pl_module.logger.experiment.log({f"{concept} audio_spec": table, "global_step": trainer.global_step})
+            fads = []
             with contextlib.redirect_stdout(io.StringIO()):
                 fd_score = self.fad.score(INPUT_PATH('textual-inversion-v3', 'data', 'valid', f'{concept}', 'fad'), OUTPUT_PATH("textual-inversion-v3", concept, 'temp'))
                 os.remove(OUTPUT_PATH("textual-inversion-v3", concept, 'temp_fad_feature_cache.npy'))
                 if isinstance(fd_score, int):
                     return
-                pl_module.log(f'FAD {concept}', list(fd_score.values())[0]*1e-5)
+                val = list(fd_score.values())[0]*1e-5
+                pl_module.log(f'FAD {concept}', val)
+                fads.append(val)
+            pl_module.log(f'fad_avg', np.mean(fads))
+            
 
 class SaveEmbeddingsCallback(L.Callback):
     def __init__(self, save_path, concepts, tokens_ids_by_concept, weights, n_epochs=10):
@@ -246,5 +290,5 @@ if __name__ == '__main__':
     wandb_logger.experiment.config['entropy_alpha'] = ENTROPY_ALPHA
 
     quick_save_cl = SaveEmbeddingsCallback(LOGS_PATH('embeds'), concepts_to_learn, tokens_ids_by_concept, text_model.shared.weight)
-    trainer = L.Trainer(callbacks=[GenEvalCallback(concepts_to_learn, fad), quick_save_cl], enable_checkpointing=False, logger=wandb_logger, log_every_n_steps=10)
+    trainer = L.Trainer(callbacks=[GenEvalCallback(concepts_to_learn, fad), quick_save_cl], enable_checkpointing=False, logger=wandb_logger, log_every_n_steps=10, profiler='advanced', max_epochs=2)
     trainer.fit(model, dm)

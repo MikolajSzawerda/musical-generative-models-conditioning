@@ -18,6 +18,7 @@ import wandb
 from data import TokensProvider, ConceptDataModule, get_ds, TokensProvider
 import uuid
 from argparse import ArgumentParser
+import yaml
 
 from audiocraft.models import MusicGen
 from audiocraft.data.audio import audio_read, audio_write
@@ -37,19 +38,18 @@ parser.add_argument("--concepts", nargs="+", default=["8bit"])
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else 'cpu')
 
-if __name__ == '__main__':
-    args = parser.parse_args()
-    model = f"facebook/musicgen-{args.model}"
-    ds = get_ds().filter(lambda x: x['concept'] in args.concepts)
+def run_exp(cfg, wandb_logger):
+    model_name = f"facebook/musicgen-{cfg.model}"
+    ds = get_ds().filter(lambda x: x['concept'] in cfg.concepts)
 
-    tokens_provider = TokensProvider(args.tokens_num)
-    tokens_by_concept = {concept: list(tokens_provider.get(concept)) for concept in args.concepts}
+    tokens_provider = TokensProvider(cfg.tokens_num)
+    tokens_by_concept = {concept: list(tokens_provider.get(concept)) for concept in cfg.concepts}
 
-    music_model = MusicGen.get_pretrained(model)
+    music_model = MusicGen.get_pretrained(model_name)
     music_model.set_generation_params(
         use_sampling=True,
         top_k=250,
-        duration=args.examples_len
+        duration=cfg.examples_len
     )
     text_conditioner=list(music_model.lm.condition_provider.conditioners.values())[0]
     tokenizer=text_conditioner.t5_tokenizer
@@ -59,20 +59,46 @@ if __name__ == '__main__':
     text_model.resize_token_embeddings(len(tokenizer))
 
     fad = FrechetAudioDistance(verbose=True, use_pca=True, use_activation=True)
-    dm = ConceptDataModule(ds, tokens_provider, tokens_ids_by_concept, music_len=255, batch_size=args.batch_size)
-    model = TransformerTextualInversion(text_model, tokenizer, music_model, text_conditioner, tokens_ids, grad_amplify=args.grad_amp, lr=args.lr, ortho_alpha=args.ortho_alpha, entropy_alpha=args.entropy_alpha)
-    # tb_logger = L.loggers.TensorBoardLogger(LOGS_PATH, name='textual-inversion-v3')
-    wandb_logger = WandbLogger(project='textual-inversion-v3', save_dir=LOGS_PATH)
-    wandb_logger.experiment.config['batch_size'] = args.batch_size
-    wandb_logger.experiment.config['examples_len'] = args.examples_len
-    wandb_logger.experiment.config['tokens_num'] = args.tokens_num
-    wandb_logger.experiment.config['model'] = model
-    wandb_logger.experiment.config['concepts'] = args.concepts
-    wandb_logger.experiment.config['lr'] = args.lr
-    wandb_logger.experiment.config['ortho_alpha'] = args.ortho_alpha
-    wandb_logger.experiment.config['entropy_alpha'] = args.entropy_alpha
-    wandb_logger.experiment.config['grad_amp'] = args.grad_amp
+    dm = ConceptDataModule(ds, tokens_provider, tokens_ids_by_concept, music_len=255, batch_size=cfg.batch_size)
+    model = TransformerTextualInversion(text_model, tokenizer, music_model, text_conditioner, tokens_ids, cfg.tokens_num, grad_amplify=cfg.grad_amp, lr=cfg.lr, ortho_alpha=cfg.ortho_alpha, entropy_alpha=cfg.entropy_alpha)
 
-    quick_save_cl = SaveEmbeddingsCallback(LOGS_PATH('embeds'), args.concepts, tokens_ids_by_concept, text_model.shared.weight)
-    trainer = L.Trainer(callbacks=[GenEvalCallback(args.concepts, fad), quick_save_cl], enable_checkpointing=False, logger=wandb_logger, log_every_n_steps=10)
+    quick_save_cl = SaveEmbeddingsCallback(LOGS_PATH('embeds'), cfg.concepts, tokens_ids_by_concept, text_model.shared.weight)
+    early_stopping = L.callbacks.EarlyStopping(
+        monitor="fad_avg",
+        patience=31,
+        mode="min",
+        verbose=True
+    )
+    trainer = L.Trainer(callbacks=[GenEvalCallback(cfg.concepts, fad, cfg.tokens_num), quick_save_cl, early_stopping], enable_checkpointing=False, logger=wandb_logger, log_every_n_steps=10, max_epochs=200)
     trainer.fit(model, dm)
+
+
+def run_sweep_exp():
+    wandb.init()
+    run_exp(wandb.config, WandbLogger(project='textual-inversion-v3', save_dir=LOGS_PATH))
+    wandb.finish()
+
+def run_args_exp():
+    logger = WandbLogger(project='textual-inversion-v3', save_dir=LOGS_PATH)
+    args = parser.parse_args()
+    logger.experiment.config['batch_size'] = args.batch_size
+    logger.experiment.config['examples_len'] = args.examples_len
+    logger.experiment.config['tokens_num'] = args.tokens_num
+    logger.experiment.config['model'] = f"facebook/musicgen-{args.model}"
+    logger.experiment.config['concepts'] = args.concepts
+    logger.experiment.config['lr'] = args.lr
+    logger.experiment.config['ortho_alpha'] = args.ortho_alpha
+    logger.experiment.config['entropy_alpha'] = args.entropy_alpha
+    logger.experiment.config['grad_amp'] = args.grad_amp   
+    run_exp(args, logger)
+
+USE_SWEEP = True
+
+if __name__ == '__main__':
+    if USE_SWEEP:
+        with open(LOGS_PATH("sweep_config.yaml")) as f:
+            sweep_config = yaml.safe_load(f)
+        sweep_id = wandb.sweep(sweep=sweep_config, project='textual-inversion-v3')
+        wandb.agent(sweep_id, function=run_sweep_exp, count=15)
+    else:
+        run_args_exp()
