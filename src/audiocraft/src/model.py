@@ -79,7 +79,7 @@ class TransformerTextualInversion(L.LightningModule):
         tokenized_prompt = {k: v.to(DEVICE) for k,v in tokenized_prompt.items()}
         mask = tokenized_prompt['attention_mask']
         # print("SHAPE:", encoded_music)
-        with self.music_model_conditioner.autocast and torch.set_grad_enabled(True):
+        with self.music_model_conditioner.autocast:
             x_e = self.text_model(**tokenized_prompt).last_hidden_state
         x_e = self.music_model_conditioner.output_proj(x_e.to(self.music_model_conditioner.output_proj.weight))
         x_e = (x_e * mask.unsqueeze(-1))

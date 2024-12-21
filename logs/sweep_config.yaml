@@ -6,7 +6,7 @@ parameters:
   examples_len:
     value: 5
   batch_size:
-    value: 20
+    value: 10
   tokens_num:
     values: [1, 5, 10, 20]
   grad_amp:

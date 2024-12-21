@@ -95,7 +95,7 @@ val_desc = [
     "audio format of %s"
 ]
 
-NUM_WORKERS = 2
+NUM_WORKERS = int(os.cpu_count() *0.75)
 
 def get_ds():
     return load_dataset('json', data_files={

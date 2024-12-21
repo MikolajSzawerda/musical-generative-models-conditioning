@@ -24,18 +24,6 @@ from audiocraft.models import MusicGen
 from audiocraft.data.audio import audio_read, audio_write
 from audioldm_eval.metrics.fad import FrechetAudioDistance
 
-parser = ArgumentParser()
-
-parser.add_argument("--examples-len", type=int, default=5)
-parser.add_argument("--tokens-num", type=int, default=5)
-parser.add_argument("--batch-size", type=int, default=5)
-parser.add_argument("--grad-amp", type=float, default=10.0)
-parser.add_argument("--entropy-alpha", type=float, default=1e1)
-parser.add_argument("--ortho-alpha", type=float, default=1e-2)
-parser.add_argument("--lr", type=float, default=1e-1)
-parser.add_argument("--model", type=str, default="small")
-parser.add_argument("--concepts", nargs="+", default=["8bit"])
-
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else 'cpu')
 
 def run_exp(cfg, wandb_logger):
@@ -65,7 +53,7 @@ def run_exp(cfg, wandb_logger):
     quick_save_cl = SaveEmbeddingsCallback(LOGS_PATH('embeds'), cfg.concepts, tokens_ids_by_concept, text_model.shared.weight)
     early_stopping = L.callbacks.EarlyStopping(
         monitor="fad_avg",
-        patience=31,
+        patience=41,
         mode="min",
         verbose=True
     )
@@ -78,9 +66,8 @@ def run_sweep_exp():
     run_exp(wandb.config, WandbLogger(project='textual-inversion-v3', save_dir=LOGS_PATH))
     wandb.finish()
 
-def run_args_exp():
+def run_args_exp(args):
     logger = WandbLogger(project='textual-inversion-v3', save_dir=LOGS_PATH)
-    args = parser.parse_args()
     logger.experiment.config['batch_size'] = args.batch_size
     logger.experiment.config['examples_len'] = args.examples_len
     logger.experiment.config['tokens_num'] = args.tokens_num
@@ -92,13 +79,24 @@ def run_args_exp():
     logger.experiment.config['grad_amp'] = args.grad_amp   
     run_exp(args, logger)
 
-USE_SWEEP = True
-
 if __name__ == '__main__':
-    if USE_SWEEP:
+    init_parser = ArgumentParser(add_help=False)
+    init_parser.add_argument("--use-sweep", action="store_true")
+    init_args, _ = init_parser.parse_known_args()
+    if init_args.use_sweep:
         with open(LOGS_PATH("sweep_config.yaml")) as f:
             sweep_config = yaml.safe_load(f)
         sweep_id = wandb.sweep(sweep=sweep_config, project='textual-inversion-v3')
         wandb.agent(sweep_id, function=run_sweep_exp, count=15)
     else:
-        run_args_exp()
+        parser = ArgumentParser(parents=[init_parser])
+        parser.add_argument("--examples-len", type=int, default=5)
+        parser.add_argument("--tokens-num", type=int, default=5)
+        parser.add_argument("--batch-size", type=int, default=5)
+        parser.add_argument("--grad-amp", type=float, default=10.0)
+        parser.add_argument("--entropy-alpha", type=float, default=1e1)
+        parser.add_argument("--ortho-alpha", type=float, default=1e-2)
+        parser.add_argument("--lr", type=float, default=1e-1)
+        parser.add_argument("--model", type=str, default="small")
+        parser.add_argument("--concepts", nargs="+", default=["8bit"])
+        run_args_exp(parser.parse_args())
