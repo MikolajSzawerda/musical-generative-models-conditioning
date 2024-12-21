@@ -1,0 +1,24 @@
+method: bayes
+metric:
+  name: fad_avg
+  goal: minimize
+parameters:
+  examples_len:
+    value: 5
+  batch_size:
+    value: 20
+  tokens_num:
+    values: [1, 5, 10, 20]
+  grad_amp:
+    values: [1.0, 10.0, 50.0]
+  entropy_alpha:
+    values: [1.0, 2.0]
+  ortho_alpha:
+    values: [0.01, 0.1, 0.001]
+  lr:
+    values: [0.1, 0.01]
+  concepts:
+    value: ["8bit"]
+  model:
+    value: "small"
+
