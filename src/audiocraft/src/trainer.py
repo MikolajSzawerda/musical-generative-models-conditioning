@@ -25,6 +25,7 @@ from audiocraft.data.audio import audio_read, audio_write
 from audioldm_eval.metrics.fad import FrechetAudioDistance
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else 'cpu')
+WANDB_PROJECT = "ti-debug"
 
 def run_exp(cfg, wandb_logger):
     model_name = f"facebook/musicgen-{cfg.model}"
@@ -47,27 +48,27 @@ def run_exp(cfg, wandb_logger):
     text_model.resize_token_embeddings(len(tokenizer))
 
     fad = FrechetAudioDistance(verbose=True, use_pca=True, use_activation=True)
-    dm = ConceptDataModule(ds, tokens_provider, tokens_ids_by_concept, music_len=255, batch_size=cfg.batch_size)
+    dm = ConceptDataModule(ds, tokens_provider, tokens_ids_by_concept, music_len=249, batch_size=cfg.batch_size)
     model = TransformerTextualInversion(text_model, tokenizer, music_model, text_conditioner, tokens_ids, cfg.tokens_num, grad_amplify=cfg.grad_amp, lr=cfg.lr, ortho_alpha=cfg.ortho_alpha, entropy_alpha=cfg.entropy_alpha)
 
     quick_save_cl = SaveEmbeddingsCallback(MODELS_PATH('textual-inversion-v3'), cfg.concepts, tokens_ids_by_concept, text_model.shared.weight)
     early_stopping = L.callbacks.EarlyStopping(
         monitor="fad_avg",
-        patience=41,
+        patience=250,
         mode="min",
         verbose=True
     )
-    trainer = L.Trainer(callbacks=[GenEvalCallback(cfg.concepts, fad, cfg.tokens_num), quick_save_cl, early_stopping], enable_checkpointing=False, logger=wandb_logger, log_every_n_steps=10, max_epochs=200)
+    trainer = L.Trainer(callbacks=[GenEvalCallback(cfg.concepts, fad, cfg.tokens_num), quick_save_cl, early_stopping], enable_checkpointing=False, logger=wandb_logger, log_every_n_steps=10, max_epochs=250)
     trainer.fit(model, dm)
 
 
 def run_sweep_exp():
     wandb.init()
-    run_exp(wandb.config, WandbLogger(project='textual-inversion-v3', save_dir=LOGS_PATH))
+    run_exp(wandb.config, WandbLogger(project=WANDB_PROJECT, save_dir=LOGS_PATH))
     wandb.finish()
 
 def run_args_exp(args):
-    logger = WandbLogger(project='textual-inversion-v3', save_dir=LOGS_PATH)
+    logger = WandbLogger(project=WANDB_PROJECT, save_dir=LOGS_PATH)
     logger.experiment.config['batch_size'] = args.batch_size
     logger.experiment.config['examples_len'] = args.examples_len
     logger.experiment.config['tokens_num'] = args.tokens_num
@@ -86,7 +87,7 @@ if __name__ == '__main__':
     if init_args.use_sweep:
         with open(LOGS_PATH("sweep_config.yaml")) as f:
             sweep_config = yaml.safe_load(f)
-        sweep_id = wandb.sweep(sweep=sweep_config, project='textual-inversion-v3')
+        sweep_id = wandb.sweep(sweep=sweep_config, project=WANDB_PROJECT)
         wandb.agent(sweep_id, function=run_sweep_exp, count=5)
     else:
         parser = ArgumentParser(parents=[init_parser])

@@ -6,6 +6,7 @@ from datasets import load_dataset
 from random import choice
 import tqdm
 from torch.utils.data import DataLoader, default_collate
+from torch.utils.data import TensorDataset, random_split, DataLoader
 import pytorch_lightning as L
 from copy import deepcopy
 
@@ -150,25 +151,25 @@ class ConceptDataset(torch.utils.data.Dataset):
         
     def _preload_encoded(self, ds, pad_value: float):
         enc_cache = []
-        max_len = -1
+        # max_len = -1
         for row in ds:
             path = row['encoded_path']
             encoded = torch.load(os.path.join(self.base_dir, path)).squeeze()
-            enc_cache.append(encoded)
-            max_len = max(max_len, encoded.shape[-1])
-        padded_list = []
-        for enc in enc_cache:
-            length = enc.shape[-1]
-            if length < max_len:
-                shape = list(enc.shape)
-                shape[-1] = max_len
-                padded = enc.new_full(shape, pad_value)
-                padded[..., :length] = enc
-                padded_list.append(padded)
-            else:
-                padded_list.append(enc)
+            enc_cache.append(self._random_slice(encoded))
+            # max_len = max(max_len, encoded.shape[-1])
+        # padded_list = []
+        # for enc in enc_cache:
+        #     length = enc.shape[-1]
+        #     if length < max_len:
+        #         shape = list(enc.shape)
+        #         shape[-1] = max_len
+        #         padded = enc.new_full(shape, pad_value)
+        #         padded[..., :length] = enc
+        #         padded_list.append(padded)
+        #     else:
+        #         padded_list.append(enc)
 
-        self.encoded_musics = torch.stack(padded_list, dim=0).contiguous()
+        self.encoded_musics = torch.stack(enc_cache, dim=0).contiguous()
     
     def __len__(self):
         return len(self.ds)
@@ -177,7 +178,8 @@ class ConceptDataset(torch.utils.data.Dataset):
         n, k = tensor.shape
         
         if self.music_len <= k:
-            start_col = torch.randint(0, k - self.music_len + 1, (1,)).item()
+            # start_col = torch.randint(0, k - self.music_len + 1, (1,)).item()
+            start_col = 0
             return tensor[:, start_col:start_col + self.music_len].detach()
         else:
             padding = torch.zeros((n, self.music_len - k), device=tensor.device, dtype=torch.int64)
@@ -224,6 +226,38 @@ def collate_fn(batch):
     collated_batch['batch_tokens'] = torch.unique(torch.cat(collated_batch['new_tokens_ids']))
     return collated_batch
 
+class ConceptTensorDataset(torch.utils.data.Dataset):
+    def __init__(self, split: str, tokens_provider, tokens_ids, sr: int=32000):
+        ds=torch.load(INPUT_PATH('encoded.pt'))[:225, :, :].cpu()
+        ds = TensorDataset(ds)
+        train_ds, val_ds = random_split(ds, [0.8, 0.2], generator=torch.Generator().manual_seed(42))
+        self.split = split
+        if self.split == 'train':
+            self.ds = train_ds
+        else:
+            self.ds = val_ds
+        self.prompter = PromptProvider(val_desc if split == 'valid' else train_desc)
+        self.tokens_provider = tokens_provider
+        self.tokens_ids = tokens_ids
+    
+    def __len__(self):
+        return len(self.ds)
+
+    def __getitem__(self, idx):
+        true_idx = idx
+        row = self.ds[true_idx]
+        concept = '8bit'
+        return {
+            'encoded_music': row[0],
+            'concept': concept,
+            'prompt': self.prompter.get(self.tokens_provider.get_str(concept)),
+            'new_tokens_ids': self.tokens_ids[concept]
+            # **({} if self.split == 'train' else 
+            #     {
+            #         'audio': row['audio']['array']
+            #     })
+        }
+
 class ConceptDataModule(L.LightningDataModule):
     def __init__(self, ds, tokens_provider, tokens_ids, music_len: int = 255, batch_size: int = 5):
         super().__init__()
@@ -233,10 +267,14 @@ class ConceptDataModule(L.LightningDataModule):
         self.batch_size = batch_size
         self.ds = ds
    
-    def setup(self, stage: str):
-        self.train_ds = ConceptDataset(self.ds['train'], self.tokens_ids,'train', self.tokens_provider, music_len=self.music_len)
-        self.val_ds = ConceptDataset(self.ds['valid'], self.tokens_ids, 'valid', self.tokens_provider, music_len=self.music_len)
+    # def setup(self, stage: str):
+    #     self.train_ds = ConceptDataset(self.ds['train'], self.tokens_ids,'train', self.tokens_provider, music_len=self.music_len)
+    #     self.val_ds = ConceptDataset(self.ds['valid'], self.tokens_ids, 'valid', self.tokens_provider, music_len=self.music_len)
     
+    def setup(self, stage: str):
+        self.train_ds = ConceptTensorDataset('train', self.tokens_provider, self.tokens_ids)
+        self.val_ds = ConceptTensorDataset('valid', self.tokens_provider, self.tokens_ids)
+
     def get_new_tokens(self)->list[str]:
         new_tokens = self.train_ds.get_new_tokens()
         new_tokens.update(self.val_ds.get_new_tokens())
@@ -249,5 +287,6 @@ class ConceptDataModule(L.LightningDataModule):
         return DataLoader(self.val_ds, batch_size=self.batch_size, collate_fn=collate_fn, num_workers=NUM_WORKERS, persistent_workers=True)
 
 if __name__ == '__main__':
-    ds = get_ds()['train']
-    cds = ConceptDataset(ds, None, 'train', None)
+    # ds = get_ds()['train']
+    # cds = ConceptDataset(ds, None, 'train', None)
+    print(next(iter(ConceptTensorDataset('train', TokensProvider(5), {'8bit': [1, 43, 2]}))))

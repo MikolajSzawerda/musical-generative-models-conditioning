@@ -51,7 +51,7 @@ class TransformerTextualInversion(L.LightningModule):
         self.token_ids = token_ids
         self.music_model_conditioner = music_model_conditioner
         self.lr = lr
-        self.prev_grad = 0
+        # self.prev_grad = 0
         self.tokens_num = tokens_num
 
         
@@ -63,7 +63,7 @@ class TransformerTextualInversion(L.LightningModule):
             mask = torch.zeros_like(grad)
             for new_token_id in self.token_ids:
                 mask[new_token_id] = self.grad_amplify
-            self.prev_grad =  (grad * (1-(mask / self.grad_amplify))).norm().item()
+            # self.prev_grad =  (grad * (1-(mask / self.grad_amplify))).norm().item()
             return grad * mask
 
         self.text_model.shared.weight.register_hook(zero_existing_emb)
@@ -79,7 +79,7 @@ class TransformerTextualInversion(L.LightningModule):
         tokenized_prompt = {k: v.to(DEVICE) for k,v in tokenized_prompt.items()}
         mask = tokenized_prompt['attention_mask']
         # print("SHAPE:", encoded_music)
-        with self.music_model_conditioner.autocast:
+        with self.music_model_conditioner.autocast and torch.set_grad_enabled(True):
             x_e = self.text_model(**tokenized_prompt).last_hidden_state
         x_e = self.music_model_conditioner.output_proj(x_e.to(self.music_model_conditioner.output_proj.weight))
         x_e = (x_e * mask.unsqueeze(-1))
@@ -88,7 +88,7 @@ class TransformerTextualInversion(L.LightningModule):
         return x
     
     def on_before_optimizer_step(self, optimizer):
-        self.log('prev_grad', self.prev_grad, on_epoch=True, prog_bar=True)
+        # self.log('prev_grad', self.prev_grad, on_epoch=True, prog_bar=True)
 
         grad_norm = self.text_model.shared.weight.grad[self.token_ids].norm().item()
         self.log('grad_norm', grad_norm, on_epoch=True, prog_bar=True)
@@ -106,13 +106,14 @@ class TransformerTextualInversion(L.LightningModule):
             self.log("ortho_loss", ortho_loss, on_step=False, on_epoch=True, prog_bar=True)
         else:
             ortho_loss = 0.0
-        loss = self.entropy_alpha * ce_loss + self.ortho_alpha * ortho_loss + self.prev_grad*1e-2
+        # loss = self.entropy_alpha * ce_loss + self.ortho_alpha * ortho_loss + self.prev_grad*1e-2
+        loss = self.entropy_alpha * ce_loss + self.ortho_alpha * ortho_loss 
         self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
         music, prompt = batch['encoded_music'], batch['prompt']
-        with torch.set_grad_enabled(False):
+        with torch.no_grad():
             out = self(music, prompt)
             val_loss, _ = compute_cross_entropy(out.logits, music, out.mask)
             self.log("val_loss", val_loss, prog_bar=True)
@@ -124,6 +125,7 @@ class TransformerTextualInversion(L.LightningModule):
         # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
         return ([optimizer], 
                 []
+                # [{"scheduler": scheduler, "interval": "epoch"}]
                 )
 import librosa
 import librosa.display
