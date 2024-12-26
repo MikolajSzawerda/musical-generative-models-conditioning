@@ -26,6 +26,7 @@ from audioldm_eval.metrics.fad import FrechetAudioDistance
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else 'cpu')
 WANDB_PROJECT = "ti-debug"
+SEED = 42
 
 def run_exp(cfg, wandb_logger):
     model_name = f"facebook/musicgen-{cfg.model}"
@@ -81,6 +82,7 @@ def run_args_exp(args):
     run_exp(args, logger)
 
 if __name__ == '__main__':
+    L.seed_everything(SEED, workers=True)
     init_parser = ArgumentParser(add_help=False)
     init_parser.add_argument("--use-sweep", action="store_true")
     init_args, _ = init_parser.parse_known_args()

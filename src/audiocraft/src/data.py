@@ -172,7 +172,7 @@ class ConceptDataset(torch.utils.data.Dataset):
         self.encoded_musics = torch.stack(enc_cache, dim=0).contiguous()
     
     def __len__(self):
-        return len(self.ds)
+        return len(self.ds) if self.split != 'train' else int(len(self.ds)*0.4)
     
     def _random_slice(self, tensor):
         n, k = tensor.shape
@@ -267,13 +267,13 @@ class ConceptDataModule(L.LightningDataModule):
         self.batch_size = batch_size
         self.ds = ds
    
-    # def setup(self, stage: str):
-    #     self.train_ds = ConceptDataset(self.ds['train'], self.tokens_ids,'train', self.tokens_provider, music_len=self.music_len)
-    #     self.val_ds = ConceptDataset(self.ds['valid'], self.tokens_ids, 'valid', self.tokens_provider, music_len=self.music_len)
-    
     def setup(self, stage: str):
-        self.train_ds = ConceptTensorDataset('train', self.tokens_provider, self.tokens_ids)
-        self.val_ds = ConceptTensorDataset('valid', self.tokens_provider, self.tokens_ids)
+        self.train_ds = ConceptDataset(self.ds['train'], self.tokens_ids,'train', self.tokens_provider, music_len=self.music_len)
+        self.val_ds = ConceptDataset(self.ds['valid'], self.tokens_ids, 'valid', self.tokens_provider, music_len=self.music_len)
+    
+    # def setup(self, stage: str):
+    #     self.train_ds = ConceptTensorDataset('train', self.tokens_provider, self.tokens_ids)
+    #     self.val_ds = ConceptTensorDataset('valid', self.tokens_provider, self.tokens_ids)
 
     def get_new_tokens(self)->list[str]:
         new_tokens = self.train_ds.get_new_tokens()

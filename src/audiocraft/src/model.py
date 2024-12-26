@@ -224,12 +224,14 @@ class SaveEmbeddingsCallback(L.Callback):
         for concept in self.concepts:
             metrics = trainer.callback_metrics
             current_score = metrics.get(f'FAD {concept}')
-
             if current_score is None or current_score > self.best_score[concept]:
                 break
-
+            print(f"Updating best saved embedings for {concept} at {trainer.current_epoch} epoch")
             self.best_score[concept] = current_score
-            self.best_embeds[concept] = self.weights[self.tokens_ids_by_concept[concept]].detach().cpu()
+            self.best_embeds[concept] = {
+                'epoch': trainer.current_epoch,
+                'embeds': self.weights[self.tokens_ids_by_concept[concept]].detach().cpu()
+            }
 
             wandb_logger = trainer.logger
             if isinstance(wandb_logger, WandbLogger):
