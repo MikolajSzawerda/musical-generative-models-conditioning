@@ -32,7 +32,7 @@ MODEL = 'facebook/musicgen-small'
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else 'cpu')
 
 class TransformerTextualInversion(L.LightningModule):
-    def __init__(self, text_model, tokenizer, music_model, music_model_conditioner, token_ids, 
+    def __init__(self, text_model, tokenizer, music_model, music_model_conditioner, token_ids, tid_by_concept,
                  tokens_num,
                  grad_amplify: float=10.0,
                  entropy_alpha: float=1e1,
@@ -53,12 +53,21 @@ class TransformerTextualInversion(L.LightningModule):
         self.lr = lr
         # self.prev_grad = 0
         self.tokens_num = tokens_num
+        self.tid_by_concept = tid_by_concept
 
         
     def _init_text_model(self):
         with torch.no_grad():
-            for new_token_id in self.token_ids:
-                self.text_model.shared.weight[new_token_id] = self.text_model.shared.weight.mean(dim=0)
+            sigma = 0.1
+            weight_mean = self.text_model.shared.weight.mean(dim=0)
+            noise = torch.randn(
+                (len(self.token_ids), weight_mean.shape[0]),
+                device=weight_mean.device,
+                dtype=weight_mean.dtype
+            ) * sigma
+            self.text_model.shared.weight[self.token_ids] = weight_mean.unsqueeze(0) + noise
+            # for new_token_id in self.token_ids:
+                # self.text_model.shared.weight[new_token_id] = self.text_model.shared.weight.mean(dim=0)
         def zero_existing_emb(grad):
             mask = torch.zeros_like(grad)
             for new_token_id in self.token_ids:
@@ -93,6 +102,36 @@ class TransformerTextualInversion(L.LightningModule):
         grad_norm = self.text_model.shared.weight.grad[self.token_ids].norm().item()
         self.log('grad_norm', grad_norm, on_epoch=True, prog_bar=True)
 
+    def _compute_ce_by_concept(self, concepts, music, out):
+        u_concepts = set(concepts)
+        res = 0
+        for concept in u_concepts:
+            mask = torch.tensor([c == concept for c in concepts], dtype=torch.bool)
+            ce_loss, _ = compute_cross_entropy(out.logits[mask], music[mask], out.mask[mask])
+            res += ce_loss
+        return ce_loss
+    
+    def _compute_cr(self, concepts, margin=1.5):
+        nr = lambda x: x/(torch.norm(x)+1e-8)
+        u_c = set(concepts)
+        res = 0.0
+        if len(u_c) < 2:
+            return res
+        tids = [self.tid_by_concept[c] for c in u_c]
+        embds = [
+            self.text_model.shared.weight[ids]
+            for ids in tids
+        ]
+        p_c = 0
+        for i in range(len(u_c)):
+            for j in range(i+1, len(u_c)):
+                dist = torch.norm(nr(embds[i])-nr(embds[j]), p='fro')
+                res += F.relu(margin-dist)
+                p_c += 1
+        if p_c > 0:
+            return res/p_c
+        return 0.0
+
     def training_step(self, batch, batch_idx):
         self.music_model.lm.requires_grad_(True)
         self.text_model.requires_grad_(True)
@@ -100,14 +139,18 @@ class TransformerTextualInversion(L.LightningModule):
 
         music, prompt = batch['encoded_music'], batch['prompt']
         out = self(music, prompt)
+        # ce_loss = self._compute_ce_by_concept(batch['concept'], music, out)
         ce_loss, _ = compute_cross_entropy(out.logits, music, out.mask)
         if self.tokens_num > 1:
             ortho_loss = compute_ortho_loss(self.text_model.shared.weight[batch['batch_tokens']])
             self.log("ortho_loss", ortho_loss, on_step=False, on_epoch=True, prog_bar=True)
         else:
             ortho_loss = 0.0
+        cr_loss = self._compute_cr(batch['concept'])
+        self.log("cr_loss", cr_loss, on_step=False, on_epoch=True, prog_bar=True)
+
         # loss = self.entropy_alpha * ce_loss + self.ortho_alpha * ortho_loss + self.prev_grad*1e-2
-        loss = self.entropy_alpha * ce_loss + self.ortho_alpha * ortho_loss 
+        loss = self.entropy_alpha * ce_loss + self.ortho_alpha * ortho_loss + cr_loss
         self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
         return loss
 
@@ -116,6 +159,7 @@ class TransformerTextualInversion(L.LightningModule):
         with torch.no_grad():
             out = self(music, prompt)
             val_loss, _ = compute_cross_entropy(out.logits, music, out.mask)
+            # val_loss = self._compute_ce_by_concept(batch['concept'], music, out)
             self.log("val_loss", val_loss, prog_bar=True)
         return val_loss
 
@@ -163,7 +207,9 @@ class GenEvalCallback(L.Callback):
         if (trainer.current_epoch) % self.n_epochs != 0:
             return
         print(f"Generation time at epoch {trainer.current_epoch + 1}")
+        fads = []
         for concept in self.concepts:
+            print(f"Generating: {concept}")
             response = pl_module.music_model.generate([f'In the style of {TokensProvider(self.tokens_num).get_str(concept)}']*10)
             audio_list = []
             # table = wandb.Table(columns=["audio", "spectrogram"])
@@ -192,15 +238,16 @@ class GenEvalCallback(L.Callback):
                 # pl_module.logger.experiment.add_audio(f"{concept} {a_idx}", music, trainer.global_step, sample_rate=pl_module.music_model.cfg.sample_rate)
             pl_module.logger.experiment.log({f"{concept}_audio": audio_list[:5], f"{concept}_spec": img_list[:5],"global_step": trainer.global_step})
             # pl_module.logger.experiment.log({f"{concept} audio_spec": table, "global_step": trainer.global_step})
-            fads = []
             with contextlib.redirect_stdout(io.StringIO()):
                 fd_score = self.fad.score(INPUT_PATH('textual-inversion-v3', 'data', 'valid', f'{concept}', 'fad'), OUTPUT_PATH("textual-inversion-v3", concept, 'temp'))
                 os.remove(OUTPUT_PATH("textual-inversion-v3", concept, 'temp_fad_feature_cache.npy'))
                 if isinstance(fd_score, int):
-                    return
+                    print("FAD RETURN -1")
+                    continue
                 val = list(fd_score.values())[0]*1e-5
                 pl_module.log(f'FAD {concept}', val)
-                fads.append(val)
+            fads.append(val)
+        if len(fads) > 0:
             pl_module.log(f'fad_avg', np.mean(fads))
             
 

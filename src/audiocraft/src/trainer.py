@@ -19,7 +19,7 @@ from data import TokensProvider, ConceptDataModule, get_ds, TokensProvider
 import uuid
 from argparse import ArgumentParser
 import yaml
-
+from datasets import Dataset, DatasetDict
 from audiocraft.models import MusicGen
 from audiocraft.data.audio import audio_read, audio_write
 from audioldm_eval.metrics.fad import FrechetAudioDistance
@@ -28,10 +28,32 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else 'cpu')
 WANDB_PROJECT = "ti-debug"
 SEED = 42
 
+def preprocess_ds(ds, concepts_ratio: float):
+    shuffled = ds['train'].shuffle(seed=42)
+    
+    concept2indexes = {}
+    concepts = shuffled['concept']
+    for i, c in enumerate(concepts):
+        if c not in concept2indexes:
+            concept2indexes[c] = []
+        concept2indexes[c].append(i)
+    
+    keep_indexes = []
+    for c, idxs in concept2indexes.items():
+        n_keep = int(concepts_ratio * len(idxs))
+        keep_indexes.extend(idxs[:min(100, len(idxs))])
+
+    keep_indexes.sort()
+
+    sampled_dataset = shuffled.select(keep_indexes)
+    print(sampled_dataset.to_pandas().groupby('concept').size())
+    ds['train'] = sampled_dataset
+    return ds
+
 def run_exp(cfg, wandb_logger):
     model_name = f"facebook/musicgen-{cfg.model}"
     ds = get_ds().filter(lambda x: x['concept'] in cfg.concepts)
-
+    ds = preprocess_ds(ds, 0.4)
     tokens_provider = TokensProvider(cfg.tokens_num)
     tokens_by_concept = {concept: list(tokens_provider.get(concept)) for concept in cfg.concepts}
 
@@ -50,7 +72,7 @@ def run_exp(cfg, wandb_logger):
 
     fad = FrechetAudioDistance(verbose=True, use_pca=True, use_activation=True)
     dm = ConceptDataModule(ds, tokens_provider, tokens_ids_by_concept, music_len=249, batch_size=cfg.batch_size)
-    model = TransformerTextualInversion(text_model, tokenizer, music_model, text_conditioner, tokens_ids, cfg.tokens_num, grad_amplify=cfg.grad_amp, lr=cfg.lr, ortho_alpha=cfg.ortho_alpha, entropy_alpha=cfg.entropy_alpha)
+    model = TransformerTextualInversion(text_model, tokenizer, music_model, text_conditioner, tokens_ids, tokens_ids_by_concept,cfg.tokens_num, grad_amplify=cfg.grad_amp, lr=cfg.lr, ortho_alpha=cfg.ortho_alpha, entropy_alpha=cfg.entropy_alpha)
 
     quick_save_cl = SaveEmbeddingsCallback(MODELS_PATH('textual-inversion-v3'), cfg.concepts, tokens_ids_by_concept, text_model.shared.weight)
     early_stopping = L.callbacks.EarlyStopping(

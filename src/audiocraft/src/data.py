@@ -172,7 +172,7 @@ class ConceptDataset(torch.utils.data.Dataset):
         self.encoded_musics = torch.stack(enc_cache, dim=0).contiguous()
     
     def __len__(self):
-        return len(self.ds) if self.split != 'train' else int(len(self.ds)*0.4)
+        return len(self.ds)
     
     def _random_slice(self, tensor):
         n, k = tensor.shape
@@ -287,6 +287,6 @@ class ConceptDataModule(L.LightningDataModule):
         return DataLoader(self.val_ds, batch_size=self.batch_size, collate_fn=collate_fn, num_workers=NUM_WORKERS, persistent_workers=True)
 
 if __name__ == '__main__':
-    # ds = get_ds()['train']
-    # cds = ConceptDataset(ds, None, 'train', None)
-    print(next(iter(ConceptTensorDataset('train', TokensProvider(5), {'8bit': [1, 43, 2]}))))
+    ds = get_ds()['train']
+    cds = ConceptDataset(ds, None, 'train', None)
+    # print(next(iter(ConceptTensorDataset('train', TokensProvider(5), {'8bit': [1, 43, 2]}))))
