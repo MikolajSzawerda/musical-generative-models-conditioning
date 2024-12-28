@@ -18,8 +18,11 @@ from data import TokensProvider, ConceptDataModule, get_ds, TokensProvider
 import uuid
 
 from audiocraft.models import MusicGen
+from audiocraft.modules.conditioners import T5Conditioner
+from transformers import T5Tokenizer
 from audiocraft.data.audio import audio_read, audio_write
 from audioldm_eval.metrics.fad import FrechetAudioDistance
+
 
 EXAMPLES_LEN = 5
 TOKENS_NUM = 1
@@ -31,6 +34,19 @@ LR = 1e-1
 MODEL = "facebook/musicgen-small"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 DATASET = "concepts-dataset"
+
+# class TextConcepts:
+#     def __init__(self, text_conditioner)
+
+# class TIMusicGen:
+#     def __init__(self, model_name: str, concepts: list | dict, duration: int=5, tokens_num: int=10):
+#         self.tokens_num = tokens_num
+
+#         self.model = MusicGen.get_pretrained(f"facebook/musicgen-{model_name}")
+#         self.model.set_generation_params(use_sampling=True, top_k=250, duration=duration)
+    
+#     def _init_new_tokens(self, concepts: list | dict):
+#         if isinstance(concepts, list):
 
 
 class TransformerTextualInversion(L.LightningModule):
@@ -64,6 +80,7 @@ class TransformerTextualInversion(L.LightningModule):
         # self.prev_grad = 0
         self.tokens_num = tokens_num
         self.tid_by_concept = tid_by_concept
+        self.weights_by_concept = weights_by_concept
 
     def _init_text_model(self):
         with torch.no_grad():

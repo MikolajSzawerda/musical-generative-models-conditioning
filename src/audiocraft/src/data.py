@@ -10,97 +10,9 @@ from torch.utils.data import TensorDataset, random_split, DataLoader
 import pytorch_lightning as L
 from copy import deepcopy
 import random
-
-DATASET = "concepts-dataset"
-
-train_desc = [
-    "the sound of %s",
-    "pure %s audio",
-    "the recorded %s sound",
-    "%s audio sample",
-    "recording of %s",
-    "high fidelity %s audio",
-    "%s sound clip",
-    "audio of %s",
-    "captured %s sound",
-    "%s audio recording",
-    "%s recording capture",
-    "audio file of %s",
-    "isolated %s sound",
-    "distinct %s recording",
-    "quality %s audio file",
-    "high-definition %s sound",
-    "the sound recording of %s",
-    "audio segment of %s",
-    "raw %s audio",
-    "%s sound snippet",
-    "%s audio track",
-    "%s sound fragment",
-    "audio recording for %s",
-    "sound capture of %s",
-    "%s audio file sample",
-    "the isolated %s recording",
-    "%s recorded audio",
-    "pure capture of %s",
-    "audio segment capture of %s",
-    "the sample of %s audio",
-    "the sound file of %s",
-    "full recording of %s",
-    "%s audio archive",
-    "%s sound collection",
-    "captured audio of %s",
-    "%s isolated sound file",
-    "the audio snippet of %s",
-    "clean audio of %s",
-    "%s audio capture",
-    "%s sound extract",
-]
-
-val_desc = [
-    "audio capture of %s",
-    "%s sound recording",
-    "pristine %s audio",
-    "clear %s recording",
-    "the audio of %s",
-    "%s audio sample capture",
-    "the recorded sound of %s",
-    "sample of %s audio",
-    "%s audio segment",
-    "recorded audio of %s",
-    "%s audio",
-    "distinct sound of %s",
-    "unprocessed %s audio",
-    "%s recording",
-    "high clarity %s sound",
-    "%s recording sample",
-    "audio portion of %s",
-    "sampled audio of %s",
-    "unfiltered %s audio",
-    "audio segment for %s",
-    "clip of %s audio",
-    "the audio snippet for %s",
-    "audio portion of %s",
-    "%s recorded segment",
-    "sampled sound of %s",
-    "%s captured in audio",
-    "audio excerpt of %s",
-    "full audio capture of %s",
-    "%s sound archive",
-    "audio track of %s",
-    "%s in sound format",
-    "%s sound recording sample",
-    "captured file of %s sound",
-    "the distinct sound of %s",
-    "high quality %s sound sample",
-    "%s in captured audio",
-    "pure audio of %s",
-    "clean capture of %s audio",
-    "recorded file of %s",
-    "audio format of %s",
-]
+from data_const import DATASET, train_desc, val_desc
 
 NUM_WORKERS = int(os.cpu_count() * 0.75)
-
 
 def get_ds():
     return load_dataset(

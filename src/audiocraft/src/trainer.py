@@ -126,7 +126,7 @@ def run_exp(cfg, wandb_logger):
         enable_checkpointing=False,
         logger=wandb_logger,
         log_every_n_steps=10,
-        max_epochs=250,
+        max_epochs=140,
     )
     trainer.fit(model, dm)
 
@@ -160,7 +160,7 @@ if __name__ == "__main__":
         with open(LOGS_PATH("sweep_config.yaml")) as f:
             sweep_config = yaml.safe_load(f)
         sweep_id = wandb.sweep(sweep=sweep_config, project=WANDB_PROJECT)
-        wandb.agent(sweep_id, function=run_sweep_exp, count=5)
+        wandb.agent(sweep_id, function=run_sweep_exp, count=12)
     else:
         parser = ArgumentParser(parents=[init_parser])
         parser.add_argument("--examples-len", type=int, default=5)
