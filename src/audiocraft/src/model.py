@@ -28,18 +28,27 @@ GRAD_AMP = 10.0
 ENTROPY_ALPHA = 1e1
 ORTHO_ALPHA = 1e-2
 LR = 1e-1
-MODEL = 'facebook/musicgen-small'
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else 'cpu')
+MODEL = "facebook/musicgen-small"
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 DATASET = "concepts-dataset"
 
+
 class TransformerTextualInversion(L.LightningModule):
-    def __init__(self, text_model, tokenizer, music_model, music_model_conditioner, token_ids, tid_by_concept,
-                 tokens_num,
-                 grad_amplify: float=10.0,
-                 entropy_alpha: float=1e1,
-                 ortho_alpha: float=1e-2,
-                 lr: float=1e-1
-                 ):
+    def __init__(
+        self,
+        text_model,
+        tokenizer,
+        music_model,
+        music_model_conditioner,
+        token_ids,
+        tid_by_concept,
+        tokens_num,
+        grad_amplify: float = 10.0,
+        entropy_alpha: float = 1e1,
+        ortho_alpha: float = 1e-2,
+        lr: float = 1e-1,
+        weights_by_concept=None,
+    ):
         super().__init__()
         # self.save_hyperparameters()  # Saves all init arguments to the checkpoint
         self.grad_amplify = grad_amplify
@@ -56,19 +65,41 @@ class TransformerTextualInversion(L.LightningModule):
         self.tokens_num = tokens_num
         self.tid_by_concept = tid_by_concept
 
-        
     def _init_text_model(self):
         with torch.no_grad():
-            sigma = 0.1
-            weight_mean = self.text_model.shared.weight.mean(dim=0)
-            noise = torch.randn(
-                (len(self.token_ids), weight_mean.shape[0]),
-                device=weight_mean.device,
-                dtype=weight_mean.dtype
-            ) * sigma
-            self.text_model.shared.weight[self.token_ids] = weight_mean.unsqueeze(0) + noise
+
+            def random_init():
+                sigma = 0.1
+                weight_mean = self.text_model.shared.weight.mean(dim=0)
+                noise = (
+                    torch.randn(
+                        (len(self.token_ids), weight_mean.shape[0]),
+                        device=weight_mean.device,
+                        dtype=weight_mean.dtype,
+                    )
+                    * sigma
+                )
+                self.text_model.shared.weight[self.token_ids] = (
+                    weight_mean.unsqueeze(0) + noise
+                )
+
+            def previous_init():
+                for concept, ids in self.tid_by_concept.items():
+                    print(
+                        f"Preloading embeds for {concept} from {self.weights_by_concept[concept]['epoch']} epoch"
+                    )
+                    for i, token_id in enumerate(ids):
+                        self.text_model.shared.weight[token_id] = (
+                            self.weights_by_concept[concept]["embeds"][i]
+                        )
+
+            if self.weights_by_concept is not None:
+                previous_init()
+            else:
+                random_init()
             # for new_token_id in self.token_ids:
-                # self.text_model.shared.weight[new_token_id] = self.text_model.shared.weight.mean(dim=0)
+            # self.text_model.shared.weight[new_token_id] = self.text_model.shared.weight.mean(dim=0)
+
         def zero_existing_emb(grad):
             mask = torch.zeros_like(grad)
             for new_token_id in self.token_ids:
@@ -77,77 +108,86 @@ class TransformerTextualInversion(L.LightningModule):
             return grad * mask
 
         self.text_model.shared.weight.register_hook(zero_existing_emb)
-        
+
     def on_train_start(self):
         self.music_model.lm.requires_grad_(True)
         self.text_model.requires_grad_(True)
-        self.music_model_conditioner.finetune=True
+        self.music_model_conditioner.finetune = True
         self._init_text_model()
 
     def forward(self, encoded_music, prompts):
-        tokenized_prompt = self.tokenizer(prompts, return_tensors='pt', padding=True, add_special_tokens=False)
-        tokenized_prompt = {k: v.to(DEVICE) for k,v in tokenized_prompt.items()}
-        mask = tokenized_prompt['attention_mask']
+        tokenized_prompt = self.tokenizer(
+            prompts, return_tensors="pt", padding=True, add_special_tokens=False
+        )
+        tokenized_prompt = {k: v.to(DEVICE) for k, v in tokenized_prompt.items()}
+        mask = tokenized_prompt["attention_mask"]
         # print("SHAPE:", encoded_music)
         with self.music_model_conditioner.autocast and torch.set_grad_enabled(True):
             x_e = self.text_model(**tokenized_prompt).last_hidden_state
-        x_e = self.music_model_conditioner.output_proj(x_e.to(self.music_model_conditioner.output_proj.weight))
-        x_e = (x_e * mask.unsqueeze(-1))
+        x_e = self.music_model_conditioner.output_proj(
+            x_e.to(self.music_model_conditioner.output_proj.weight)
+        )
+        x_e = x_e * mask.unsqueeze(-1)
         with self.music_model.autocast:
-            x = self.music_model.lm.compute_predictions(encoded_music, [], {'description': (x_e, mask)})
+            x = self.music_model.lm.compute_predictions(
+                encoded_music, [], {"description": (x_e, mask)}
+            )
         return x
-    
+
     def on_before_optimizer_step(self, optimizer):
         # self.log('prev_grad', self.prev_grad, on_epoch=True, prog_bar=True)
 
         grad_norm = self.text_model.shared.weight.grad[self.token_ids].norm().item()
-        self.log('grad_norm', grad_norm, on_epoch=True, prog_bar=True)
+        self.log("grad_norm", grad_norm, on_epoch=True, prog_bar=True)
 
     def _compute_ce_by_concept(self, concepts, music, out):
         u_concepts = set(concepts)
         res = 0
         for concept in u_concepts:
             mask = torch.tensor([c == concept for c in concepts], dtype=torch.bool)
-            ce_loss, _ = compute_cross_entropy(out.logits[mask], music[mask], out.mask[mask])
+            ce_loss, _ = compute_cross_entropy(
+                out.logits[mask], music[mask], out.mask[mask]
+            )
             res += ce_loss
         return ce_loss
-    
+
     def _compute_cr(self, concepts, margin=1.5):
-        nr = lambda x: x/(torch.norm(x)+1e-8)
+        nr = lambda x: x / (torch.norm(x) + 1e-8)
         u_c = set(concepts)
         res = 0.0
         if len(u_c) < 2:
             return res
         tids = [self.tid_by_concept[c] for c in u_c]
-        embds = [
-            self.text_model.shared.weight[ids]
-            for ids in tids
-        ]
+        embds = [self.text_model.shared.weight[ids] for ids in tids]
         p_c = 0
         for i in range(len(u_c)):
-            for j in range(i+1, len(u_c)):
-                dist = torch.norm(nr(embds[i])-nr(embds[j]), p='fro')
-                res += F.relu(margin-dist)
+            for j in range(i + 1, len(u_c)):
+                dist = torch.norm(nr(embds[i]) - nr(embds[j]), p="fro")
+                res += F.relu(margin - dist)
                 p_c += 1
         if p_c > 0:
-            return res/p_c
+            return res / p_c
         return 0.0
 
     def training_step(self, batch, batch_idx):
         self.music_model.lm.requires_grad_(True)
         self.text_model.requires_grad_(True)
-        self.music_model_conditioner.finetune=True
+        self.music_model_conditioner.finetune = True
 
-        music, prompt = batch['encoded_music'], batch['prompt']
+        music, prompt = batch["encoded_music"], batch["prompt"]
         out = self(music, prompt)
         # ce_loss = self._compute_ce_by_concept(batch['concept'], music, out)
         ce_loss, _ = compute_cross_entropy(out.logits, music, out.mask)
         if self.tokens_num > 1:
-            ortho_loss = compute_ortho_loss(self.text_model.shared.weight[batch['batch_tokens']])
-            self.log("ortho_loss", ortho_loss, on_step=False, on_epoch=True, prog_bar=True)
+            ortho_loss = compute_ortho_loss(
+                self.text_model.shared.weight[batch["batch_tokens"]]
+            )
+            self.log(
+                "ortho_loss", ortho_loss, on_step=False, on_epoch=True, prog_bar=True
+            )
         else:
             ortho_loss = 0.0
-        cr_loss = self._compute_cr(batch['concept'])
+        cr_loss = self._compute_cr(batch["concept"])
         self.log("cr_loss", cr_loss, on_step=False, on_epoch=True, prog_bar=True)
 
         # loss = self.entropy_alpha * ce_loss + self.ortho_alpha * ortho_loss + self.prev_grad*1e-2
@@ -156,7 +196,7 @@ class TransformerTextualInversion(L.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        music, prompt = batch['encoded_music'], batch['prompt']
+        music, prompt = batch["encoded_music"], batch["prompt"]
         with torch.no_grad():
             out = self(music, prompt)
             val_loss, _ = compute_cross_entropy(out.logits, music, out.mask)
@@ -168,14 +208,18 @@ class TransformerTextualInversion(L.LightningModule):
         # Optimizer and learning rate scheduler setup
         optimizer = Adam([self.text_model.shared.weight], lr=self.lr)
         # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
-        return ([optimizer], 
-                []
-                # [{"scheduler": scheduler, "interval": "epoch"}]
-                )
+        return (
+            [optimizer],
+            [],
+            # [{"scheduler": scheduler, "interval": "epoch"}]
+        )
+
+
 import librosa
 import librosa.display
 import numpy as np
 import matplotlib.pyplot as plt
+
 
 class GenEvalCallback(L.Callback):
     def __init__(self, generation_concepts, fad, tokens_num, n_epochs=10):
@@ -184,20 +228,22 @@ class GenEvalCallback(L.Callback):
         self.concepts = generation_concepts
         self.fad = fad
         self.tokens_num = tokens_num
-    
+
     def _audio_to_spectrogram_image(self, audio, sr):
         if audio.ndim > 1:
             audio = np.squeeze(audio, axis=0)
-        S = librosa.feature.melspectrogram(y=audio, sr=sr, n_mels=128, fmax=sr/2)
+        S = librosa.feature.melspectrogram(y=audio, sr=sr, n_mels=128, fmax=sr / 2)
         S_dB = librosa.power_to_db(S, ref=np.max)
-        
+
         # Plot the mel-spectrogram
-        fig, ax = plt.subplots(figsize=(6,4), dpi=150)
-        librosa.display.specshow(S_dB, x_axis='time', y_axis='mel', sr=sr, fmax=sr/2, ax=ax, cmap="magma")
-        ax.set_title('Mel-Spectrogram')
+        fig, ax = plt.subplots(figsize=(6, 4), dpi=150)
+        librosa.display.specshow(
+            S_dB, x_axis="time", y_axis="mel", sr=sr, fmax=sr / 2, ax=ax, cmap="magma"
+        )
+        ax.set_title("Mel-Spectrogram")
         ax.set_xlabel("Time")
         ax.set_ylabel("Mel Frequency")
-        
+
         # Convert plot to numpy array
         fig.canvas.draw()
         spectrogram_image = np.array(fig.canvas.renderer.buffer_rgba())
@@ -211,50 +257,58 @@ class GenEvalCallback(L.Callback):
         fads = []
         for concept in self.concepts:
             print(f"Generating: {concept}")
-            response = pl_module.music_model.generate([f'In the style of {TokensProvider(self.tokens_num).get_str(concept)}']*10)
+            response = pl_module.music_model.generate(
+                [f"In the style of {TokensProvider(self.tokens_num).get_str(concept)}"]
+                * 10
+            )
             audio_list = []
             # table = wandb.Table(columns=["audio", "spectrogram"])
             img_list = []
             for a_idx in range(response.shape[0]):
                 music = response[a_idx].cpu()
-                music = music/np.max(np.abs(music.numpy()))
-                path = OUTPUT_PATH(DATASET, concept, 'temp', f'music_p{a_idx}')
+                music = music / np.max(np.abs(music.numpy()))
+                path = OUTPUT_PATH(DATASET, concept, "temp", f"music_p{a_idx}")
                 audio_write(path, music, pl_module.music_model.cfg.sample_rate)
 
                 # spectrogram = self._audio_to_spectrogram_image(music.numpy(), pl_module.music_model.cfg.sample_rate)
                 audio_wdb = wandb.Audio(
-                        path+'.wav', 
-                        sample_rate=pl_module.music_model.cfg.sample_rate, 
-                        caption=f"{concept} audio {a_idx}"
-                    )
+                    path + ".wav",
+                    sample_rate=pl_module.music_model.cfg.sample_rate,
+                    caption=f"{concept} audio {a_idx}",
+                )
                 # spec_wdb = wandb.Image(spectrogram, caption=f"Spectrogram {a_idx}")
                 # table.add_data(audio_wdb, spec_wdb)
-                audio_list.append(
-                    audio_wdb
-                )
+                audio_list.append(audio_wdb)
                 # table.add_data(audio_wdb, spec_wdb)
                 # img_list.append(
                 #     spec_wdb
                 # )
                 # pl_module.logger.experiment.add_audio(f"{concept} {a_idx}", music, trainer.global_step, sample_rate=pl_module.music_model.cfg.sample_rate)
             # pl_module.logger.experiment.log({f"{concept}_audio": audio_list[:5], f"{concept}_spec": img_list[:5],"global_step": trainer.global_step})
-            pl_module.logger.experiment.log({f"{concept}_audio": audio_list[:5], "global_step": trainer.global_step})
+            pl_module.logger.experiment.log(
+                {f"{concept}_audio": audio_list[:5], "global_step": trainer.global_step}
+            )
             # pl_module.logger.experiment.log({f"{concept} audio_spec": table, "global_step": trainer.global_step})
             with contextlib.redirect_stdout(io.StringIO()):
-                fd_score = self.fad.score(INPUT_PATH(DATASET, 'data', 'valid', f'{concept}', 'fad'), OUTPUT_PATH(DATASET, concept, 'temp'))
-                os.remove(OUTPUT_PATH(DATASET, concept, 'temp_fad_feature_cache.npy'))
+                fd_score = self.fad.score(
+                    INPUT_PATH(DATASET, "data", "valid", f"{concept}", "fad"),
+                    OUTPUT_PATH(DATASET, concept, "temp"),
+                )
+                os.remove(OUTPUT_PATH(DATASET, concept, "temp_fad_feature_cache.npy"))
                 if isinstance(fd_score, int):
                     print("FAD RETURN -1")
                     continue
-                val = list(fd_score.values())[0]*1e-5
-                pl_module.log(f'FAD {concept}', val)
+                val = list(fd_score.values())[0] * 1e-5
+                pl_module.log(f"FAD {concept}", val)
             fads.append(val)
         if len(fads) > 0:
-            pl_module.log(f'fad_avg', np.mean(fads))
-            
+            pl_module.log(f"fad_avg", np.mean(fads))
+
 
 class SaveEmbeddingsCallback(L.Callback):
-    def __init__(self, save_path, concepts, tokens_ids_by_concept, weights, n_epochs=10):
+    def __init__(
+        self, save_path, concepts, tokens_ids_by_concept, weights, n_epochs=10
+    ):
         super().__init__()
         self.save_path = save_path
         self.concepts = concepts
@@ -272,14 +326,18 @@ class SaveEmbeddingsCallback(L.Callback):
             return
         for concept in self.concepts:
             metrics = trainer.callback_metrics
-            current_score = metrics.get(f'FAD {concept}')
+            current_score = metrics.get(f"FAD {concept}")
             if current_score is None or current_score > self.best_score[concept]:
-                break
-            print(f"Updating best saved embedings for {concept} at {trainer.current_epoch} epoch")
+                continue
+            print(
+                f"Updating best saved embedings for {concept} at {trainer.current_epoch} epoch"
+            )
             self.best_score[concept] = current_score
             self.best_embeds[concept] = {
-                'epoch': trainer.current_epoch,
-                'embeds': self.weights[self.tokens_ids_by_concept[concept]].detach().cpu()
+                "epoch": trainer.current_epoch,
+                "embeds": self.weights[self.tokens_ids_by_concept[concept]]
+                .detach()
+                .cpu(),
             }
 
             wandb_logger = trainer.logger
@@ -290,13 +348,17 @@ class SaveEmbeddingsCallback(L.Callback):
             save_file_path = os.path.join(self.save_path, f"{run_name}-best.pt")
             torch.save(self.best_embeds, save_file_path)
 
+
 def get_new_concepts():
     ds = get_ds()
     new_concepts = set()
+
     def collect_unique(batch):
-        new_concepts.update(batch['concept'])
+        new_concepts.update(batch["concept"])
+
     ds.map(collect_unique, batched=True, batch_size=1000)
     return new_concepts
+
 
 def append_new_tokens(tokenizer, tokens_by_concept):
     tokens_ids = {}
@@ -307,42 +369,67 @@ def append_new_tokens(tokenizer, tokens_by_concept):
         idxs.extend(tokens_ids[concept])
     return tokens_ids, idxs
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
 
     concepts_to_learn = get_new_concepts()
-    concepts_to_learn = ['8bit'] 
-    ds = get_ds().filter(lambda x: x['concept'] in concepts_to_learn)
+    concepts_to_learn = ["8bit"]
+    ds = get_ds().filter(lambda x: x["concept"] in concepts_to_learn)
 
     tokens_provider = TokensProvider(TOKENS_NUM)
-    tokens_by_concept = {concept: list(tokens_provider.get(concept)) for concept in concepts_to_learn}
+    tokens_by_concept = {
+        concept: list(tokens_provider.get(concept)) for concept in concepts_to_learn
+    }
 
     music_model = MusicGen.get_pretrained(MODEL)
     music_model.set_generation_params(
-        use_sampling=True,
-        top_k=250,
-        duration=EXAMPLES_LEN
+        use_sampling=True, top_k=250, duration=EXAMPLES_LEN
     )
-    text_conditioner=list(music_model.lm.condition_provider.conditioners.values())[0]
-    tokenizer=text_conditioner.t5_tokenizer
-    text_model=text_conditioner.t5
+    text_conditioner = list(music_model.lm.condition_provider.conditioners.values())[0]
+    tokenizer = text_conditioner.t5_tokenizer
+    text_model = text_conditioner.t5
 
     tokens_ids_by_concept, tokens_ids = append_new_tokens(tokenizer, tokens_by_concept)
     text_model.resize_token_embeddings(len(tokenizer))
 
     fad = FrechetAudioDistance(verbose=True, use_pca=True, use_activation=True)
-    dm = ConceptDataModule(ds, tokens_provider, tokens_ids_by_concept, music_len=255, batch_size=BATCH_SIZE)
-    model = TransformerTextualInversion(text_model, tokenizer, music_model, text_conditioner, tokens_ids, grad_amplify=GRAD_AMP, lr=LR, ortho_alpha=ORTHO_ALPHA, entropy_alpha=ENTROPY_ALPHA)
+    dm = ConceptDataModule(
+        ds, tokens_provider, tokens_ids_by_concept, music_len=255, batch_size=BATCH_SIZE
+    )
+    model = TransformerTextualInversion(
+        text_model,
+        tokenizer,
+        music_model,
+        text_conditioner,
+        tokens_ids,
+        grad_amplify=GRAD_AMP,
+        lr=LR,
+        ortho_alpha=ORTHO_ALPHA,
+        entropy_alpha=ENTROPY_ALPHA,
+    )
     # tb_logger = L.loggers.TensorBoardLogger(LOGS_PATH, name='textual-inversion-v3')
-    wandb_logger = WandbLogger(project='ds-3', save_dir=LOGS_PATH)
-    wandb_logger.experiment.config['batch_size'] = BATCH_SIZE
-    wandb_logger.experiment.config['examples_len'] = EXAMPLES_LEN
-    wandb_logger.experiment.config['tokens_num'] = TOKENS_NUM
-    wandb_logger.experiment.config['model'] = MODEL
-    wandb_logger.experiment.config['concepts'] = concepts_to_learn
-    wandb_logger.experiment.config['lr'] = LR
-    wandb_logger.experiment.config['ortho_alpha'] = ORTHO_ALPHA
-    wandb_logger.experiment.config['entropy_alpha'] = ENTROPY_ALPHA
+    wandb_logger = WandbLogger(project="ds-3", save_dir=LOGS_PATH)
+    wandb_logger.experiment.config["batch_size"] = BATCH_SIZE
+    wandb_logger.experiment.config["examples_len"] = EXAMPLES_LEN
+    wandb_logger.experiment.config["tokens_num"] = TOKENS_NUM
+    wandb_logger.experiment.config["model"] = MODEL
+    wandb_logger.experiment.config["concepts"] = concepts_to_learn
+    wandb_logger.experiment.config["lr"] = LR
+    wandb_logger.experiment.config["ortho_alpha"] = ORTHO_ALPHA
+    wandb_logger.experiment.config["entropy_alpha"] = ENTROPY_ALPHA
 
-    quick_save_cl = SaveEmbeddingsCallback(LOGS_PATH('embeds'), concepts_to_learn, tokens_ids_by_concept, text_model.shared.weight)
-    trainer = L.Trainer(callbacks=[GenEvalCallback(concepts_to_learn, fad), quick_save_cl], enable_checkpointing=False, logger=wandb_logger, log_every_n_steps=10, profiler='advanced', max_epochs=2)
+    quick_save_cl = SaveEmbeddingsCallback(
+        LOGS_PATH("embeds"),
+        concepts_to_learn,
+        tokens_ids_by_concept,
+        text_model.shared.weight,
+    )
+    trainer = L.Trainer(
+        callbacks=[GenEvalCallback(concepts_to_learn, fad), quick_save_cl],
+        enable_checkpointing=False,
+        logger=wandb_logger,
+        log_every_n_steps=10,
+        profiler="advanced",
+        max_epochs=2,
+    )
     trainer.fit(model, dm)

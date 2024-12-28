@@ -1,5 +1,10 @@
 from util_tools import compute_cross_entropy, compute_ortho_loss
-from model import append_new_tokens, TransformerTextualInversion, SaveEmbeddingsCallback, GenEvalCallback
+from model import (
+    append_new_tokens,
+    TransformerTextualInversion,
+    SaveEmbeddingsCallback,
+    GenEvalCallback,
+)
 
 from torch.utils.data import DataLoader, default_collate
 import tqdm
@@ -24,65 +29,105 @@ from audiocraft.models import MusicGen
 from audiocraft.data.audio import audio_read, audio_write
 from audioldm_eval.metrics.fad import FrechetAudioDistance
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else 'cpu')
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 WANDB_PROJECT = "ds-v3"
 SEED = 42
 DATASET = "concepts-dataset"
 
+
 def preprocess_ds(ds, concepts_ratio: float):
-    shuffled = ds['train'].shuffle(seed=42)
-    
+    shuffled = ds["train"].shuffle(seed=42)
+
     concept2indexes = {}
-    concepts = shuffled['concept']
+    concepts = shuffled["concept"]
     for i, c in enumerate(concepts):
         if c not in concept2indexes:
             concept2indexes[c] = []
         concept2indexes[c].append(i)
-    
+
     keep_indexes = []
     for c, idxs in concept2indexes.items():
         n_keep = int(concepts_ratio * len(idxs))
-        keep_indexes.extend(idxs[:min(100, len(idxs))])
+        keep_indexes.extend(idxs[: min(100, len(idxs))])
 
     keep_indexes.sort()
 
     sampled_dataset = shuffled.select(keep_indexes)
-    print(sampled_dataset.to_pandas().groupby('concept').size())
-    ds['train'] = sampled_dataset
+    print(sampled_dataset.to_pandas().groupby("concept").size())
+    ds["train"] = sampled_dataset
     return ds
+
 
 def run_exp(cfg, wandb_logger):
     model_name = f"facebook/musicgen-{cfg.model}"
-    ds = get_ds().filter(lambda x: x['concept'] in cfg.concepts)
+    ds = get_ds().filter(lambda x: x["concept"] in cfg.concepts)
     # ds = preprocess_ds(ds, 0.4)
     tokens_provider = TokensProvider(cfg.tokens_num)
-    tokens_by_concept = {concept: list(tokens_provider.get(concept)) for concept in cfg.concepts}
+    tokens_by_concept = {
+        concept: list(tokens_provider.get(concept)) for concept in cfg.concepts
+    }
 
     music_model = MusicGen.get_pretrained(model_name)
     music_model.set_generation_params(
-        use_sampling=True,
-        top_k=250,
-        duration=cfg.examples_len
+        use_sampling=True, top_k=250, duration=cfg.examples_len
     )
-    text_conditioner=list(music_model.lm.condition_provider.conditioners.values())[0]
-    tokenizer=text_conditioner.t5_tokenizer
-    text_model=text_conditioner.t5
+    text_conditioner = list(music_model.lm.condition_provider.conditioners.values())[0]
+    tokenizer = text_conditioner.t5_tokenizer
+    text_model = text_conditioner.t5
 
     tokens_ids_by_concept, tokens_ids = append_new_tokens(tokenizer, tokens_by_concept)
     text_model.resize_token_embeddings(len(tokenizer))
 
     fad = FrechetAudioDistance(verbose=True, use_pca=True, use_activation=True)
-    dm = ConceptDataModule(ds, tokens_provider, tokens_ids_by_concept, music_len=249, batch_size=cfg.batch_size)
-    model = TransformerTextualInversion(text_model, tokenizer, music_model, text_conditioner, tokens_ids, tokens_ids_by_concept,cfg.tokens_num, grad_amplify=cfg.grad_amp, lr=cfg.lr, ortho_alpha=cfg.ortho_alpha, entropy_alpha=cfg.entropy_alpha)
-
-    quick_save_cl = SaveEmbeddingsCallback(MODELS_PATH(DATASET), cfg.concepts, tokens_ids_by_concept, text_model.shared.weight)
-    early_stopping = L.callbacks.EarlyStopping(
-        monitor="fad_avg",
-        patience=250,
-        mode="min",
-        verbose=True
+    dm = ConceptDataModule(
+        ds,
+        tokens_provider,
+        tokens_ids_by_concept,
+        music_len=249,
+        batch_size=cfg.batch_size,
     )
-    trainer = L.Trainer(callbacks=[GenEvalCallback(cfg.concepts, fad, cfg.tokens_num), quick_save_cl, early_stopping], enable_checkpointing=False, logger=wandb_logger, log_every_n_steps=10, max_epochs=250)
+
+    if cfg.previous_run != "":
+        previous_embeds = torch.load(
+            MODELS_PATH(DATASET, f"{cfg.previous_run}-best.pt")
+        )
+    else:
+        previous_embeds = None
+    model = TransformerTextualInversion(
+        text_model,
+        tokenizer,
+        music_model,
+        text_conditioner,
+        tokens_ids,
+        tokens_ids_by_concept,
+        cfg.tokens_num,
+        grad_amplify=cfg.grad_amp,
+        lr=cfg.lr,
+        ortho_alpha=cfg.ortho_alpha,
+        entropy_alpha=cfg.entropy_alpha,
+        weights_by_concept=previous_embeds,
+    )
+
+    quick_save_cl = SaveEmbeddingsCallback(
+        MODELS_PATH(DATASET),
+        cfg.concepts,
+        tokens_ids_by_concept,
+        text_model.shared.weight,
+    )
+    early_stopping = L.callbacks.EarlyStopping(
+        monitor="fad_avg", patience=250, mode="min", verbose=True
+    )
+    trainer = L.Trainer(
+        callbacks=[
+            GenEvalCallback(cfg.concepts, fad, cfg.tokens_num),
+            quick_save_cl,
+            early_stopping,
+        ],
+        enable_checkpointing=False,
+        logger=wandb_logger,
+        log_every_n_steps=10,
+        max_epochs=250,
+    )
     trainer.fit(model, dm)
 
 
@@ -91,20 +136,22 @@ def run_sweep_exp():
     run_exp(wandb.config, WandbLogger(project=WANDB_PROJECT, save_dir=LOGS_PATH))
     wandb.finish()
 
+
 def run_args_exp(args):
     logger = WandbLogger(project=WANDB_PROJECT, save_dir=LOGS_PATH)
-    logger.experiment.config['batch_size'] = args.batch_size
-    logger.experiment.config['examples_len'] = args.examples_len
-    logger.experiment.config['tokens_num'] = args.tokens_num
-    logger.experiment.config['model'] = f"facebook/musicgen-{args.model}"
-    logger.experiment.config['concepts'] = args.concepts
-    logger.experiment.config['lr'] = args.lr
-    logger.experiment.config['ortho_alpha'] = args.ortho_alpha
-    logger.experiment.config['entropy_alpha'] = args.entropy_alpha
-    logger.experiment.config['grad_amp'] = args.grad_amp   
+    logger.experiment.config["batch_size"] = args.batch_size
+    logger.experiment.config["examples_len"] = args.examples_len
+    logger.experiment.config["tokens_num"] = args.tokens_num
+    logger.experiment.config["model"] = f"facebook/musicgen-{args.model}"
+    logger.experiment.config["concepts"] = args.concepts
+    logger.experiment.config["lr"] = args.lr
+    logger.experiment.config["ortho_alpha"] = args.ortho_alpha
+    logger.experiment.config["entropy_alpha"] = args.entropy_alpha
+    logger.experiment.config["grad_amp"] = args.grad_amp
     run_exp(args, logger)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     L.seed_everything(SEED, workers=True)
     init_parser = ArgumentParser(add_help=False)
     init_parser.add_argument("--use-sweep", action="store_true")
@@ -124,5 +171,6 @@ if __name__ == '__main__':
         parser.add_argument("--ortho-alpha", type=float, default=1e-2)
         parser.add_argument("--lr", type=float, default=1e-1)
         parser.add_argument("--model", type=str, default="small")
+        parser.add_argument("--previous-run", type=str, default="")
         parser.add_argument("--concepts", nargs="+", default=["8bit"])
         run_args_exp(parser.parse_args())
