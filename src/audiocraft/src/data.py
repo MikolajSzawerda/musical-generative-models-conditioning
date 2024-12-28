@@ -10,6 +10,8 @@ from torch.utils.data import TensorDataset, random_split, DataLoader
 import pytorch_lightning as L
 from copy import deepcopy
 
+DATASET = "concepts-dataset"
+
 train_desc = [
     "the sound of %s",
     "pure %s audio",
@@ -100,8 +102,8 @@ NUM_WORKERS = int(os.cpu_count() *0.75)
 
 def get_ds():
     return load_dataset('json', data_files={
-                'valid': INPUT_PATH('textual-inversion-v3', 'metadata_val.json'),
-                'train': INPUT_PATH('textual-inversion-v3', 'metadata_train.json')
+                'valid': INPUT_PATH(DATASET, 'metadata_val.json'),
+                'train': INPUT_PATH(DATASET, 'metadata_train.json')
                 })
 def get_hg_ds():
     return load_dataset('mszawerd/concept-dataset')
@@ -124,13 +126,13 @@ class PromptProvider:
         return choice(self.template) % args
 
 class ConceptDataset(torch.utils.data.Dataset):
-    def __init__(self, ds, new_tokens_ids, split: str, tokens_provider, sr: int=32000, music_len: int=100, pad_value: float=0.0):
+    def __init__(self, ds, new_tokens_ids, split: str, tokens_provider, sr: int=32000, music_len: int=100, pad_value: float=0.0, base_dir=DATASET):
         self.ds = ds
         if self.ds.cache_files:
             self.base_dir = os.path.dirname(self.ds.cache_files[0]["filename"])
         else:
             raise ValueError("No cache files found in the dataset")
-        self.base_dir = INPUT_PATH('textual-inversion-v3')
+        self.base_dir = INPUT_PATH(base_dir)
 
         # if split == 'valid':
         #     def map_path(x):
@@ -285,6 +287,26 @@ class ConceptDataModule(L.LightningDataModule):
     
     def val_dataloader(self) -> DataLoader:
         return DataLoader(self.val_ds, batch_size=self.batch_size, collate_fn=collate_fn, num_workers=NUM_WORKERS, persistent_workers=True)
+
+class EvalDataModule(L.LightningDataModule):
+    def __init__(self, ds, tokens_provider, tokens_ids, music_len: int = 255, batch_size: int = 5, base_dir=DATASET):
+        super().__init__()
+        self.tokens_provider = tokens_provider
+        self.tokens_ids = tokens_ids
+        self.music_len = music_len
+        self.batch_size = batch_size
+        self.ds = ds
+        self.base_dir = base_dir
+   
+    def setup(self, stage: str):
+        self.train_ds = ConceptDataset(self.ds['train'], self.tokens_ids,'train', self.tokens_provider, music_len=self.music_len, base_dir=self.base_dir)
+    
+    def train_dataloader(self) -> DataLoader:
+        return DataLoader(self.train_ds, batch_size=self.batch_size, collate_fn=collate_fn, num_workers=NUM_WORKERS, persistent_workers=True, shuffle=True)
+    
+    def val_dataloader(self) -> DataLoader:
+        return []
+
 
 if __name__ == '__main__':
     ds = get_ds()['train']

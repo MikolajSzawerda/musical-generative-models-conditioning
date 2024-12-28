@@ -12,6 +12,7 @@ import json
 import tqdm
 import contextlib
 import io
+DATASET = "concepts-dataset"
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else 'cpu')
 clap_model = CLAP(version = '2023', use_cuda=torch.cuda.is_available())
@@ -79,7 +80,7 @@ def clap_sim(description, path):
     return clap_model.compute_similarity(embeds.to('cuda'), text_embeds)[:, 0].mean(dim=0).detach().cpu().item()
 
 def load_descriptions():
-    with open(INPUT_PATH("textual-inversion-v3", 'metadata_concepts.json'), 'r') as fh:
+    with open(INPUT_PATH(DATASET, 'metadata_concepts.json'), 'r') as fh:
         return json.load(fh)
 
 if __name__ == '__main__':
@@ -87,8 +88,8 @@ if __name__ == '__main__':
     result = {}
     descriptions = load_descriptions()
     for concept in tqdm.tqdm(args.concepts):
-        fad_path = INPUT_PATH("textual-inversion-v3", 'data', 'valid', concept, 'fad')
-        train_path = INPUT_PATH("textual-inversion-v3", 'data', 'train', concept, 'audio')
+        fad_path = INPUT_PATH(DATASET, 'data', 'valid', concept, 'fad')
+        train_path = INPUT_PATH(DATASET, 'data', 'train', concept, 'audio')
         ti_path = OUTPUT_PATH("musicgen-ti-generated", concept)
         other_path = OUTPUT_PATH(args.other, concept)
         train_embeddings = get_dir_embeds(train_path).numpy()
