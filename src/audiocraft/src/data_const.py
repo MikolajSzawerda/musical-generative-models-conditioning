@@ -1,4 +1,3 @@
-DATASET = "concepts-dataset"
 train_desc = [
     "the sound of %s",
     "pure %s audio",
@@ -84,3 +83,9 @@ val_desc = [
     "recorded file of %s",
     "audio format of %s",
 ]
+
+from enum import Enum
+
+
+class Datasets(Enum):
+    TEXTUAL_INVERSION_V3 = "textual-inversion-v3"
