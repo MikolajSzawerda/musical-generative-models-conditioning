@@ -185,7 +185,7 @@ class ConceptDataset(torch.utils.data.Dataset):
         return {
             "encoded_music": self._random_slice(self.encoded_musics[idx]),
             "concept": concept,
-            "prompt": self.prompter.get(self.concepts_db[concept].tokens),
+            "prompt": self.prompter.get(self.concepts_db[concept].pseudoword()),
             "new_tokens_ids": self.concepts_db[concept].token_ids,
         }
 

@@ -21,10 +21,10 @@ from callbacks import (
 logger = logging.getLogger(__name__)
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-WANDB_PROJECT = "textual-inversion-feat-importance"
+WANDB_PROJECT = "debug"
 SEED = 42
 
-EXP_DATASET = Datasets.CONCEPTS_DATASET
+EXP_DATASET = Datasets.TEXTUAL_INVERSION_V3
 
 
 def preprocess_ds(ds, concepts_ratio: float):
@@ -77,7 +77,7 @@ def run_exp(cfg: ModelConfig, wandb_logger):
         EmbedingsSaveCallbackConfig(model.model.db),
     )
     early_stopping = L.callbacks.EarlyStopping(
-        monitor="fad_avg", patience=31, mode="min", verbose=True
+        monitor="fad_avg", patience=331, mode="min", verbose=True
     )
     eval_cl = GenEvalCallback(
         fad,
@@ -149,7 +149,7 @@ if __name__ == "__main__":
         parser = ArgumentParser(parents=[init_parser])
         parser.add_argument("--examples-len", type=int, default=5)
         parser.add_argument("--tokens-num", type=int, default=20)
-        parser.add_argument("--batch-size", type=int, default=20)
+        parser.add_argument("--batch-size", type=int, default=10)
         parser.add_argument("--grad-amplify", type=float, default=10.0)
         parser.add_argument("--entropy-alpha", type=float, default=1e1)
         parser.add_argument("--ortho-alpha", type=float, default=1e-2)
