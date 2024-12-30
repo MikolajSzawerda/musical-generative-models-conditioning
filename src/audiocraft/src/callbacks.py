@@ -35,7 +35,7 @@ class EvaluationCallbackConfig:
     concepts: TextConcepts
     tokens_num: int
     n_epochs: int = 10
-    n_generations: int = 3
+    n_generations: int = 8
     prompt_template: str = "In the style of %s"
     calc_spectrogram: bool = False
 

@@ -21,10 +21,10 @@ from callbacks import (
 logger = logging.getLogger(__name__)
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-WANDB_PROJECT = "ds-v3"
+WANDB_PROJECT = "textual-inversion-feat-importance"
 SEED = 42
 
-EXP_DATASET = Datasets.TEXTUAL_INVERSION_V3
+EXP_DATASET = Datasets.CONCEPTS_DATASET
 
 
 def preprocess_ds(ds, concepts_ratio: float):
@@ -55,7 +55,7 @@ def run_exp(cfg: ModelConfig, wandb_logger):
     model_name = f"facebook/musicgen-{cfg.model_name}"
     music_model = MusicGen.get_pretrained(model_name, device=DEVICE)
     music_model.set_generation_params(
-        use_sampling=True, top_k=250, duration=cfg.examples_len
+        use_sampling=True, top_k=250, duration=cfg.examples_len, cfg_coef=cfg.cfg_coef
     )
     model = TransformerTextualInversion.from_musicgen(music_model, cfg)
 
@@ -76,9 +76,9 @@ def run_exp(cfg: ModelConfig, wandb_logger):
         model.model.text_weights,
         EmbedingsSaveCallbackConfig(model.model.db),
     )
-    # early_stopping = L.callbacks.EarlyStopping(
-    #     monitor="fad_avg", patience=250, mode="min", verbose=True
-    # )
+    early_stopping = L.callbacks.EarlyStopping(
+        monitor="fad_avg", patience=31, mode="min", verbose=True
+    )
     eval_cl = GenEvalCallback(
         fad,
         EXP_DATASET,
@@ -91,7 +91,7 @@ def run_exp(cfg: ModelConfig, wandb_logger):
         callbacks=[
             eval_cl,
             quick_save_cl,
-            # early_stopping,
+            early_stopping,
         ],
         enable_checkpointing=False,
         logger=wandb_logger,
@@ -126,6 +126,8 @@ def run_args_exp(args):
     wandb_logger.experiment.config["ortho_alpha"] = args.ortho_alpha
     wandb_logger.experiment.config["entropy_alpha"] = args.entropy_alpha
     wandb_logger.experiment.config["grad_amplify"] = args.grad_amplify
+    wandb_logger.experiment.config["cr_margin"] = args.cr_margin
+    wandb_logger.experiment.config["cfg_coef"] = args.cfg_coef
     run_exp(args, wandb_logger)
 
 
@@ -142,15 +144,17 @@ if __name__ == "__main__":
         with open(LOGS_PATH("sweep_config.yaml")) as f:
             sweep_config = yaml.safe_load(f)
         sweep_id = wandb.sweep(sweep=sweep_config, project=WANDB_PROJECT)
-        wandb.agent(sweep_id, function=run_sweep_exp, count=12)
+        wandb.agent(sweep_id, function=run_sweep_exp, count=20)
     else:
         parser = ArgumentParser(parents=[init_parser])
         parser.add_argument("--examples-len", type=int, default=5)
-        parser.add_argument("--tokens-num", type=int, default=5)
-        parser.add_argument("--batch-size", type=int, default=5)
+        parser.add_argument("--tokens-num", type=int, default=20)
+        parser.add_argument("--batch-size", type=int, default=20)
         parser.add_argument("--grad-amplify", type=float, default=10.0)
         parser.add_argument("--entropy-alpha", type=float, default=1e1)
         parser.add_argument("--ortho-alpha", type=float, default=1e-2)
+        parser.add_argument("--cr-margin", type=float, default=1.5)
+        parser.add_argument("--cfg-coef", type=float, default=3.0)
         parser.add_argument("--lr", type=float, default=1e-1)
         parser.add_argument("--model-name", type=str, default="small")
         # parser.add_argument("--previous-run", type=str, default="")

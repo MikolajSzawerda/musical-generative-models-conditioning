@@ -89,3 +89,4 @@ from enum import Enum
 
 class Datasets(Enum):
     TEXTUAL_INVERSION_V3 = "textual-inversion-v3"
+    CONCEPTS_DATASET = "concepts-dataset"

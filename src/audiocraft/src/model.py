@@ -29,6 +29,9 @@ class ModelConfig:
     examples_len: int = 5
     concepts: list[str] = tuple()
     batch_size: int = 10
+    cr_margin: float = 1.5
+    cfg_coef: float = 3.0
+    # previous_run: str = ''
 
 
 class TIMusicGen:
@@ -196,7 +199,7 @@ class TransformerTextualInversion(L.LightningModule):
             )
         else:
             ortho_loss = 0.0
-        cr_loss = self._compute_cr(batch["concept"])
+        cr_loss = self._compute_cr(batch["concept"], self.cfg.cr_margin)
         self.log("cr_loss", cr_loss, on_step=False, on_epoch=True, prog_bar=True)
 
         # loss = self.entropy_alpha * ce_loss + self.ortho_alpha * ortho_loss + self.prev_grad*1e-2

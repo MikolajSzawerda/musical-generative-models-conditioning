@@ -4,22 +4,24 @@ metric:
   goal: minimize
 parameters:
   examples_len:
-    values: [3, 5]
+    values: [2, 5]
   batch_size:
-    values: [10, 20]
+    value: 20
   tokens_num:
     values: [5, 10, 20]
-  grad_amp:
+  grad_amplify:
     value: 10.0
   entropy_alpha:
-    value: [1.0, 10]
+    values: [1.0, 10]
   ortho_alpha:
     value: 0.1
   lr:
-    value: 0.1
-  previous_run:
-    value: ''
+    values: [0.1, 0.01]
+  cr_margin:
+    values: [0.1, 1.5]
+  cfg_coef:
+    values: [3.0, 5.0]
   concepts:
     value: ['two-steps', 'chillout', 'metal-solos', '8bit-slow', 'choir', '8bit', 'piano', '80s-synth', 'saxophone-chillout', 'b-minor-rock', 'bells', 'pirates']
-  model:
+  model_name:
     value: "medium"
