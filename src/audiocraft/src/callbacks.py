@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 
 from audiocraft.data.audio import audio_write
 import dataclasses
-
+from pathlib import Path
 from data import Concept, TextConcepts
 from data_const import Datasets
 from audioldm_eval.metrics.fad import FrechetAudioDistance
@@ -192,4 +192,5 @@ class SaveEmbeddingsCallback(L.Callback):
         else:
             run_name = str(uuid.uuid4())
         save_file_path = MODELS_PATH(self.base_dir, f"{run_name}-best.pt")
+        Path(MODELS_PATH(self.base_dir)).mkdir(parents=True, exist_ok=True)
         torch.save(self.best_embeds, save_file_path)

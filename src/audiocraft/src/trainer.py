@@ -24,7 +24,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 WANDB_PROJECT = "debug"
 SEED = 42
 
-EXP_DATASET = Datasets.TEXTUAL_INVERSION_V3
+EXP_DATASET = Datasets.CONCEPTS_DATASET
 
 
 def preprocess_ds(ds, concepts_ratio: float):

@@ -6,7 +6,7 @@ parameters:
   examples_len:
     values: [2, 5]
   batch_size:
-    value: 20
+    value: 10
   tokens_num:
     values: [5, 10, 20]
   grad_amplify:
@@ -16,12 +16,12 @@ parameters:
   ortho_alpha:
     value: 0.1
   lr:
-    values: [0.1, 0.01]
+    value: 0.1
   cr_margin:
-    values: [0.1, 1.5]
+    value: 1.5
   cfg_coef:
-    values: [3.0, 5.0]
+    value: 3.0
   concepts:
     value: ['two-steps', 'chillout', 'metal-solos', '8bit-slow', 'choir', '8bit', 'piano', '80s-synth', 'saxophone-chillout', 'b-minor-rock', 'bells', 'pirates']
   model_name:
-    value: "medium"
+    value: "small"
