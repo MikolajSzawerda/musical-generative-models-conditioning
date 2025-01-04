@@ -21,7 +21,7 @@ from callbacks import (
 logger = logging.getLogger(__name__)
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-WANDB_PROJECT = "debug"
+WANDB_PROJECT = "textual-musicgen-small-concepts"
 SEED = 42
 
 EXP_DATASET = Datasets.CONCEPTS_DATASET
@@ -144,7 +144,7 @@ if __name__ == "__main__":
         with open(LOGS_PATH("sweep_config.yaml")) as f:
             sweep_config = yaml.safe_load(f)
         sweep_id = wandb.sweep(sweep=sweep_config, project=WANDB_PROJECT)
-        wandb.agent(sweep_id, function=run_sweep_exp, count=20)
+        wandb.agent(sweep_id, function=run_sweep_exp, count=12)
     else:
         parser = ArgumentParser(parents=[init_parser])
         parser.add_argument("--examples-len", type=int, default=5)

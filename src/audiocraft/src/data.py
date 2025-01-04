@@ -61,6 +61,9 @@ class Concept:
 
     def pseudoword(self):
         return " ".join(self.tokens)
+    
+    def __str__(self):
+        return self.name
 
 
 @dataclasses.dataclass

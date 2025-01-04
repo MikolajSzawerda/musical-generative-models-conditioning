@@ -167,23 +167,23 @@ class SaveEmbeddingsCallback(L.Callback):
             for c in cfg.concepts.concepts.values()
         }
 
-    def on_validation_end(self, trainer, pl_module):
+    def on_validation_epoch_end(self, trainer, pl_module):
         if trainer.current_epoch % self.cfg.n_epochs != 0:
             return
 
         def update_best(concept: Concept):
             metrics = trainer.callback_metrics
-            current_score = metrics.get(f"FAD {concept}")
+            current_score = metrics.get(f"FAD {concept.name}")
             if current_score is None or current_score > self.best_score[concept.name]:
                 return
             logger.info(
                 f"Updating best saved embedings for {concept.name} at {trainer.current_epoch} epoch"
             )
             self.best_score[concept.name] = current_score.cpu().item()
-            self.best_embeds[concept.name] = ConceptEmbeds(
-                trainer.current_epoch,
-                self.weights[concept.token_ids].detach().cpu(),
-            )
+            self.best_embeds[concept.name] = {
+                "epoch": trainer.current_epoch,
+                "embeds": self.weights[concept.token_ids].detach().cpu(),
+            }
 
         self.cfg.concepts.execute(update_best)
         wandb_logger = trainer.logger
@@ -194,3 +194,7 @@ class SaveEmbeddingsCallback(L.Callback):
         save_file_path = MODELS_PATH(self.base_dir, f"{run_name}-best.pt")
         Path(MODELS_PATH(self.base_dir)).mkdir(parents=True, exist_ok=True)
         torch.save(self.best_embeds, save_file_path)
+        values = self.best_score.values()
+        valid_values = [x for x in values if x is not None and np.isfinite(x)]
+        if len(valid_values) > 0:
+            pl_module.log(f"fad_best_avg", np.mean(valid_values))

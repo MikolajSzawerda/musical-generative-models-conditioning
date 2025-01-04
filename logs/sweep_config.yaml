@@ -1,18 +1,18 @@
-method: bayes
+method: grid
 metric:
-  name: fad_avg
+  name: fad_best_avg
   goal: minimize
 parameters:
   examples_len:
-    values: [2, 5]
+    value: 5
   batch_size:
     value: 10
   tokens_num:
-    values: [5, 10, 20]
+    value: 20
   grad_amplify:
     value: 10.0
   entropy_alpha:
-    values: [1.0, 10]
+    value: 1.0
   ortho_alpha:
     value: 0.1
   lr:
@@ -22,6 +22,13 @@ parameters:
   cfg_coef:
     value: 3.0
   concepts:
-    value: ['two-steps', 'chillout', 'metal-solos', '8bit-slow', 'choir', '8bit', 'piano', '80s-synth', 'saxophone-chillout', 'b-minor-rock', 'bells', 'pirates']
+    values: 
+      - ['80s-synth']
+      - ['choir']
+      - ['saxophone-chillout', 'metal-solos']
+      - ['8bit-slow', '8bit']
+      - ['two-steps', 'bells', 'pirates']
+      - ['80s-synth', 'saxophone-chillout', 'b-minor-rock', 'metal-solos']
+      - ['two-steps', 'chillout', 'metal-solos', '8bit-slow', 'choir', '8bit', 'piano', '80s-synth', 'saxophone-chillout', 'b-minor-rock', 'bells', 'pirates']
   model_name:
     value: "small"
