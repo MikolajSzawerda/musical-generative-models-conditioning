@@ -21,7 +21,7 @@ from callbacks import (
 logger = logging.getLogger(__name__)
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-WANDB_PROJECT = "textual-musicgen-small-concepts"
+WANDB_PROJECT = "debug"
 SEED = 42
 
 EXP_DATASET = Datasets.CONCEPTS_DATASET

@@ -20,6 +20,7 @@ from data import Concept, TextConcepts
 from data_const import Datasets
 from audioldm_eval.metrics.fad import FrechetAudioDistance
 import logging
+from metrics import calc_fad
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +102,7 @@ class GenEvalCallback(L.Callback):
         logger.info(f"Generation time at epoch {trainer.current_epoch + 1}")
         fads: list[float] = []
 
-        def evaluate_concept(concept: Concept):
+        def generate_concept_music(concept: Concept):
             logger.info("Started evaluating %s" % concept.name)
             results = pl_module.model.model.generate(
                 [self.cfg.prompt_template % concept.pseudoword()]
@@ -137,14 +138,14 @@ class GenEvalCallback(L.Callback):
             if self.cfg.calc_spectrogram:
                 plots[f"{concept.name}_spectrogram"] = img_list
             pl_module.logger.experiment.log(plots)
-            fad_score = self._calc_fad(concept.name)
-            if fad_score != -1:
-                pl_module.log(f"FAD {concept.name}", fad_score)
-                fads.append(fad_score)
-            else:
-                logging.error("FAD %s RETURN -1" % concept.name)
 
-        self.cfg.concepts.execute(evaluate_concept)
+        self.cfg.concepts.execute(generate_concept_music)
+        for name, val in calc_fad(
+            self.base_dir, self.cfg.concepts.concepts_names
+        ).items():
+            pl_module.log(f"FAD {name}", val)
+            fads.append(val)
+
         if len(fads) > 0:
             pl_module.log(f"fad_avg", np.mean(fads))
 

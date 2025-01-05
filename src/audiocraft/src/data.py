@@ -79,6 +79,10 @@ class TextConcepts:
     @property
     def concepts(self) -> dict[str, Concept]:
         return self.db
+    
+    @property
+    def concepts_names(self) -> list[str]:
+        return [c.name for c in self.db.values()]
 
     @cached_property
     def all_token_ids(self) -> list[int]:
