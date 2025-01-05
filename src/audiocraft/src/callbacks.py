@@ -12,7 +12,7 @@ import librosa
 import librosa.display
 import numpy as np
 import matplotlib.pyplot as plt
-
+import json
 from audiocraft.data.audio import audio_write
 import dataclasses
 from pathlib import Path
@@ -20,7 +20,7 @@ from data import Concept, TextConcepts
 from data_const import Datasets
 from audioldm_eval.metrics.fad import FrechetAudioDistance
 import logging
-from metrics import calc_fad
+from metrics import calc_fad, calc_clap
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +80,8 @@ class GenEvalCallback(L.Callback):
         self.fad = fad
         self.cfg = cfg
         self.base_dir = base_dir.value
+        with open(INPUT_PATH(self.base_dir, 'metadata_concepts.json'), 'r') as fh:
+            self.concept_descriptions = json.load(fh)
 
     def _calc_fad(self, concept: str):
         with contextlib.redirect_stdout(io.StringIO()):
@@ -101,6 +103,7 @@ class GenEvalCallback(L.Callback):
             return
         logger.info(f"Generation time at epoch {trainer.current_epoch + 1}")
         fads: list[float] = []
+        claps: list[float] = []
 
         def generate_concept_music(concept: Concept):
             logger.info("Started evaluating %s" % concept.name)
@@ -140,14 +143,24 @@ class GenEvalCallback(L.Callback):
             pl_module.logger.experiment.log(plots)
 
         self.cfg.concepts.execute(generate_concept_music)
+        logger.info("Calculating FAD")
         for name, val in calc_fad(
             self.base_dir, self.cfg.concepts.concepts_names
         ).items():
             pl_module.log(f"FAD {name}", val)
             fads.append(val)
+        logger.info("Calculating CLAP")
+        for name, val in calc_clap(
+            self.base_dir, {k: v for k,v in self.concept_descriptions.items() if k in self.cfg.concepts.concepts_names}
+        ).items():
+            pl_module.log(f"CLAP {name}", val)
+            claps.append(val)
 
         if len(fads) > 0:
             pl_module.log(f"fad_avg", np.mean(fads))
+
+        if len(claps) > 0:
+            pl_module.log(f"clap_avg", np.mean(claps))
 
 
 class SaveEmbeddingsCallback(L.Callback):

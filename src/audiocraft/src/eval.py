@@ -6,18 +6,24 @@ from tools.project import INPUT_PATH, LOGS_PATH, OUTPUT_PATH, MODELS_PATH
 from toolz import partition_all, concat
 import os
 import torch
-from audioldm_eval.metrics.fad import FrechetAudioDistance
+# from audioldm_eval.metrics.fad import FrechetAudioDistance
 from argparse import ArgumentParser
 import json
 import tqdm
 import contextlib
 import io
-
+from metrics import _process_concept
+from fadtk.model_loader import CLAPLaionModel
+from fadtk.fad import FrechetAudioDistance
+from fadtk.utils import get_cache_embedding_path
+from pathlib import Path
 DATASET = "concepts-dataset"
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 clap_model = CLAP(version="2023", use_cuda=torch.cuda.is_available())
-fad_model = FrechetAudioDistance(verbose=False, use_pca=True, use_activation=True)
+model = CLAPLaionModel('music')
+fad = FrechetAudioDistance(model)
+# fad_model = FrechetAudioDistance(verbose=False, use_pca=True, use_activation=True)
 
 parser = ArgumentParser(add_help=False)
 parser.add_argument("--other", type=str, default="musicgen-style")
@@ -30,7 +36,7 @@ def get_dir_embeds(dir_path: str, recalc=True):
     cache_path = os.path.join(os.path.dirname(dir_path), f"clap_feature_{dir_name}.pt")
     if os.path.exists(cache_path) and not recalc:
         return torch.load(cache_path)
-    files = os.listdir(dir_path)
+    files = [f for f in os.listdir(dir_path) if not os.path.isdir(os.path.join(dir_path, f))]
     batches = partition_all(20, files)
     res = []
 
@@ -71,13 +77,13 @@ def knco(train_embeds, val_embeds, gen_embeds, K=5):
     return res / len(indices_val)
 
 
-def fad(reference_path, examples_path):
-    print("FAD calc")
-    with contextlib.redirect_stdout(io.StringIO()):
-        fd_score = fad_model.score(reference_path, examples_path, recalculate=True)
-        if isinstance(fd_score, int):
-            return float("inf")
-        return list(fd_score.values())[0] * 1e-5
+# def fad(reference_path, examples_path):
+#     print("FAD calc")
+#     with contextlib.redirect_stdout(io.StringIO()):
+#         fd_score = fad_model.score(reference_path, examples_path, recalculate=True)
+#         if isinstance(fd_score, int):
+#             return float("inf")
+#         return list(fd_score.values())[0] * 1e-5
 
 
 @torch.no_grad
@@ -101,6 +107,20 @@ def load_descriptions():
         return json.load(fh)
 
 
+
+def clap_fad(ref_path, eval_path):
+    def cache_path(path):
+        if os.path.exists(os.path.join(path, 'embeddings', model.name)):
+            return
+        
+        for f in Path(path).glob("*.*"):
+            if os.path.isdir(f):
+                continue
+            fad.cache_embedding_file(f)
+    cache_path(ref_path)
+    cache_path(eval_path)
+    return fad.score(ref_path, eval_path)
+
 if __name__ == "__main__":
     args = parser.parse_args()
     result = {}
@@ -117,15 +137,21 @@ if __name__ == "__main__":
 
         clap_ti = clap_sim(descriptions[concept], ti_path)
         clap_other = clap_sim(descriptions[concept], other_path)
+
+        fad_clap_ti = clap_fad(train_path, ti_path)
+        fad_clap_other = clap_fad(train_path, other_path)
+
         kncc_res_ti = kncc(train_embeddings, val_embeddings, gen_embeddings)
         knco_res_ti = knco(train_embeddings, val_embeddings, gen_embeddings)
         kncc_res_other = kncc(train_embeddings, val_embeddings, other_embeddings)
         knco_res_other = knco(train_embeddings, val_embeddings, other_embeddings)
         result[concept] = {
-            "fad_ti": fad(fad_path, ti_path),
-            "fad_other": fad(fad_path, other_path),
+            "fad_ti": _process_concept(concept, ti_path, clear=False)[1],
+            "fad_other": _process_concept(concept, other_path, clear=False)[1],
             "clap_ti": clap_ti,
             "clap_other": clap_other,
+            "fad_clap_ti": fad_clap_ti,
+            "fad_clap_other": fad_clap_other,
             "kncc_ti": kncc_res_ti,
             "knco_ti": kncc_res_ti,
             "kncc_other": kncc_res_other,
