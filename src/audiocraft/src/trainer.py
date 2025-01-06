@@ -24,7 +24,7 @@ from utils import suppress_all_output
 logger = logging.getLogger(__name__)
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-WANDB_PROJECT = "debug"
+WANDB_PROJECT = "small-musicgen-textual-inversion"
 SEED = 42
 
 EXP_DATASET = Datasets.CONCEPTS_DATASET
@@ -75,6 +75,7 @@ def run_exp(cfg: ModelConfig, wandb_logger):
         clap = CLAPLaionModel('music')
         fad = FrechetAudioDistance(clap)
 
+
     quick_save_cl = SaveEmbeddingsCallback(
         EXP_DATASET,
         model.model.text_weights,
@@ -83,6 +84,7 @@ def run_exp(cfg: ModelConfig, wandb_logger):
     early_stopping = L.callbacks.EarlyStopping(
         monitor="fad_avg", patience=331, mode="min", verbose=True
     )
+
     eval_cl = GenEvalCallback(
         fad,
         clap,

@@ -8,7 +8,7 @@ parameters:
   batch_size:
     value: 10
   tokens_num:
-    values: [5, 10, 20]
+    values: [10, 20]
   grad_amplify:
     value: 10.0
   entropy_alpha:

@@ -19,7 +19,8 @@ from pathlib import Path
 from data import Concept, TextConcepts
 from data_const import Datasets
 from fadtk.model_loader import CLAPLaionModel
-from fadtk.fad import FrechetAudioDistance
+from fadtk.fad import FrechetAudioDistance, calc_frechet_distance
+from fadtk.utils import get_cache_embedding_path
 import logging
 from metrics import calc_fad, calc_clap
 from utils import suppress_all_output
@@ -27,6 +28,8 @@ import shutil
 import random
 from toolz import partition_all, concat
 import uuid
+import multiprocessing
+from concurrent.futures import ProcessPoolExecutor
 import tqdm
 logger = logging.getLogger(__name__)
 
@@ -76,6 +79,65 @@ def audio_to_spectrogram_image(audio, sr):
     plt.close(fig)
     return spectrogram_image
 
+from pathlib import Path
+def cosine_similarity(a, b):
+        return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+def _calc_clap_score(fad, clap, concept: str, path: str, descriptions: dict[str, str]):
+        audio_embeds = fad.load_embeddings(path)
+        text_embeds = clap.model.get_text_embedding(descriptions[concept]).reshape(-1)
+        return np.mean(cosine_similarity(audio_embeds, text_embeds))
+
+@torch.no_grad()
+def offline_eval(fad, clap, base_dir: str, concepts: list[str], descriptions: dict[str, str]):
+    res = {}
+    mu_bg, cov_bg = fad.load_stats('fma_pop')
+    for concept in concepts:
+        gen_path = OUTPUT_PATH(base_dir, concept, "temp")
+        ref_path = INPUT_PATH(base_dir, "data", "train", concept, "audio")
+
+        def cache_path_emb(path: str):
+            files = Path(path).glob("*.*")
+            files = [f for f in files if not get_cache_embedding_path(clap.name, f).exists()]
+            if len(files) == 0:
+                return
+            for f in files:
+                fad.cache_embedding_file(f)
+        cache_path_emb(gen_path)
+        # cache_path_emb(ref_path)
+        mu_gen, cov_gen = fad.load_stats(gen_path)
+        mu_ref, cov_ref = fad.load_stats(ref_path)
+        score = calc_frechet_distance(mu_ref, cov_ref, mu_gen, cov_gen)
+        glob_score = calc_frechet_distance(mu_bg, cov_bg, mu_gen, cov_gen)
+        clap_score = _calc_clap_score(fad, clap, concept, gen_path, descriptions)
+        res[concept] = {
+             'ds_fad': score,
+             'fad': glob_score,
+             'clap': clap_score
+        }
+        shutil.rmtree(os.path.join(gen_path, "embeddings"))
+        shutil.rmtree(os.path.join(gen_path, "convert"))
+        shutil.rmtree(os.path.join(gen_path, "stats"))
+    return res
+import sys
+def _suppress_output():
+    devnull = open(os.devnull, "w")
+    sys.stdout = devnull
+    sys.stderr = devnull
+def calc_eval(base_dir: str, concepts: list[str], descriptions: dict[str, str], workers=2):
+    concepts_batches = list(partition_all(len(concepts) // workers, concepts))
+    multiprocessing.set_start_method('spawn', force=True)
+    with ProcessPoolExecutor(max_workers=workers, initializer=_suppress_output) as executor:
+        results = list(
+            executor.map(
+                offline_eval,
+                [base_dir] * len(concepts_batches),
+                concepts_batches,
+                [{k: descriptions[k] for k in batch} for batch in concepts_batches],
+            )
+        )
+
+    return {k:v for val in results for k,v in val.items()}
+
 
 class EMACallback(L.Callback):
     def __init__(self, decay=0.9999):
@@ -123,52 +185,12 @@ class GenEvalCallback(L.Callback):
         cfg: EvaluationCallbackConfig,
     ):
         super().__init__()
+        self.cfg = cfg
         self.fad = fad
         self.clap = clap
-        self.cfg = cfg
         self.base_dir = base_dir.value
         with open(INPUT_PATH(self.base_dir, "metadata_concepts.json"), "r") as fh:
             self.concept_descriptions = json.load(fh)
-
-    def _calc_fad(self, concept: str):
-        with contextlib.redirect_stdout(io.StringIO()):
-            fd_score = self.fad.score(
-                INPUT_PATH(self.base_dir, "data", "valid", f"{concept}", "fad"),
-                OUTPUT_PATH(self.base_dir, concept, "temp"),
-            )
-            cache_path = OUTPUT_PATH(
-                self.base_dir, concept, "temp_fad_feature_cache.npy"
-            )
-            if os.path.exists(cache_path):
-                os.remove(cache_path)
-            if isinstance(fd_score, int):
-                return -1
-            return list(fd_score.values())[0] * 1e-5
-    
-    @staticmethod
-    def cosine_similarity(a, b):
-        return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
-    
-    def _calc_clap_score(self, concept: str, path: str):
-        audio_embeds = self.fad.load_embeddings(path)
-        text_embeds = self.clap.model.get_text_embedding(self.concept_descriptions[concept]).reshape(-1)
-        return np.mean(self.cosine_similarity(audio_embeds, text_embeds))
-
-    def _calc_fad_fadtk(self, concept: str):
-        gen_path = OUTPUT_PATH(self.base_dir, concept, "temp")
-        ref_path = INPUT_PATH(self.base_dir, "data", "train", concept, "audio")
-        with suppress_all_output():
-            for f in Path(gen_path).glob("*.*"):
-                self.fad.cache_embedding_file(f)
-            for f in Path(ref_path).glob("*.*"):
-                self.fad.cache_embedding_file(f)
-            score = self.fad.score(ref_path, gen_path)
-            glob_score = self.fad.score('fma_pop', gen_path)
-            clap_score = self._calc_clap_score(concept, gen_path)
-            shutil.rmtree(os.path.join(gen_path, "embeddings"))
-            shutil.rmtree(os.path.join(gen_path, "convert"))
-            shutil.rmtree(os.path.join(gen_path, "stats"))
-        return score, glob_score, clap_score
 
     def on_validation_epoch_end(self, trainer, pl_module):
         if trainer.current_epoch % self.cfg.n_epochs != 0:
@@ -241,18 +263,16 @@ class GenEvalCallback(L.Callback):
         )
 
         pl_module.logger.experiment.log(plots)
-
-        def calc_fad(concept: Concept):
-            score, q_score, clap_score = self._calc_fad_fadtk(concept.name)
-            pl_module.log(f"DS_FAD {concept.name}", score)
-            pl_module.log(f"FAD {concept.name}", q_score)
-            pl_module.log(f"CLAP {concept.name}", clap_score)
-            fads.append(q_score)
-            ds_fads.append(score)
-            claps.append(clap_score)
-
-        logger.info("Calculating FAD")
-        self.cfg.concepts.execute(calc_fad)
+        logger.info("Started evalation")
+        with suppress_all_output():
+            eval_res = offline_eval(self.fad, self.clap, self.base_dir, self.cfg.concepts.concepts_names, self.concept_descriptions)
+        for c_name, stats in eval_res.items():
+            pl_module.log(f"DS_FAD {c_name}", stats['ds_fad'])
+            pl_module.log(f"FAD {c_name}", stats['fad'])
+            pl_module.log(f"CLAP {c_name}", stats['clap'])
+            ds_fads.append(stats['ds_fad'])
+            fads.append(stats['fad'])
+            claps.append(stats['clap'])
 
         if len(fads) > 0:
             pl_module.log(f"fad_avg", np.mean(fads))
@@ -312,3 +332,16 @@ class SaveEmbeddingsCallback(L.Callback):
         valid_values = [x for x in values if x is not None and np.isfinite(x)]
         if len(valid_values) > 0:
             pl_module.log(f"fad_best_avg", np.mean(valid_values))
+
+if __name__ == '__main__':
+    import timeit
+    with open(INPUT_PATH('concepts-dataset', "metadata_concepts.json"), "r") as fh:
+        concept_descriptions = json.load(fh)
+    def func1():
+        calc_eval('concepts-dataset', list(concept_descriptions.keys()), concept_descriptions, workers=4)
+    def func2():
+        offline_eval('concepts-dataset', list(concept_descriptions.keys()), concept_descriptions)
+    time_1 = timeit.timeit(func1, number=1)
+    time_2 = timeit.timeit(func2, number=1)
+    print(time_1, time_2)
+    
