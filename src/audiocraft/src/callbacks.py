@@ -25,6 +25,9 @@ from metrics import calc_fad, calc_clap
 from utils import suppress_all_output
 import shutil
 import random
+from toolz import partition_all, concat
+import uuid
+
 logger = logging.getLogger(__name__)
 
 
@@ -42,6 +45,7 @@ class EvaluationCallbackConfig:
     n_generations: int = 10
     prompt_template: str = "In the style of %s"
     calc_spectrogram: bool = False
+    generation_batch: int = 30
 
 
 @dataclasses.dataclass
@@ -71,6 +75,7 @@ def audio_to_spectrogram_image(audio, sr):
     plt.close(fig)
     return spectrogram_image
 
+
 class EMACallback(L.Callback):
     def __init__(self, decay=0.9999):
         super().__init__()
@@ -86,9 +91,9 @@ class EMACallback(L.Callback):
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
         ids = pl_module.model.db.all_token_ids
         self.ema_weights = (
-                    self.decay * self.ema_weights +
-                    (1 - self.decay) * pl_module.model.text_weights[ids].clone()
-                )
+            self.decay * self.ema_weights
+            + (1 - self.decay) * pl_module.model.text_weights[ids].clone()
+        )
 
     def apply_ema(self, pl_module):
         if self.ema_weights is None:
@@ -99,13 +104,14 @@ class EMACallback(L.Callback):
         self.old_weights = old_embeds
         pl_module.model.text_weights[ids] = self.ema_weights
         return old_embeds
-    
+
     def remove_ema(self, pl_module):
         if self.old_weights is None:
             return
         logger.info("EMA removed")
         ids = pl_module.model.db.all_token_ids
         pl_module.model.text_weights[ids] = self.old_weights
+
 
 class GenEvalCallback(L.Callback):
     def __init__(
@@ -118,7 +124,7 @@ class GenEvalCallback(L.Callback):
         self.fad = fad
         self.cfg = cfg
         self.base_dir = base_dir.value
-        with open(INPUT_PATH(self.base_dir, 'metadata_concepts.json'), 'r') as fh:
+        with open(INPUT_PATH(self.base_dir, "metadata_concepts.json"), "r") as fh:
             self.concept_descriptions = json.load(fh)
 
     def _calc_fad(self, concept: str):
@@ -135,20 +141,20 @@ class GenEvalCallback(L.Callback):
             if isinstance(fd_score, int):
                 return -1
             return list(fd_score.values())[0] * 1e-5
-    
+
     def _calc_fad_fadtk(self, concept: str):
-            gen_path = OUTPUT_PATH(self.base_dir, concept, "temp")
-            ref_path = INPUT_PATH(self.base_dir, 'data', 'train', concept, "audio")
-            with suppress_all_output():
-                for f in Path(gen_path).glob("*.*"):
-                    self.fad.cache_embedding_file(f)
-                for f in Path(ref_path).glob("*.*"):
-                    self.fad.cache_embedding_file(f)
-                score = self.fad.score(ref_path, gen_path)
-                shutil.rmtree(os.path.join(gen_path, "embeddings"))
-                shutil.rmtree(os.path.join(gen_path, "convert"))
-                shutil.rmtree(os.path.join(gen_path, "stats"))
-            return score
+        gen_path = OUTPUT_PATH(self.base_dir, concept, "temp")
+        ref_path = INPUT_PATH(self.base_dir, "data", "train", concept, "audio")
+        with suppress_all_output():
+            for f in Path(gen_path).glob("*.*"):
+                self.fad.cache_embedding_file(f)
+            for f in Path(ref_path).glob("*.*"):
+                self.fad.cache_embedding_file(f)
+            score = self.fad.score(ref_path, gen_path)
+            shutil.rmtree(os.path.join(gen_path, "embeddings"))
+            shutil.rmtree(os.path.join(gen_path, "convert"))
+            shutil.rmtree(os.path.join(gen_path, "stats"))
+        return score
 
     def on_validation_epoch_end(self, trainer, pl_module):
         if trainer.current_epoch % self.cfg.n_epochs != 0:
@@ -156,45 +162,68 @@ class GenEvalCallback(L.Callback):
         logger.info(f"Generation time at epoch {trainer.current_epoch + 1}")
         fads: list[float] = []
         claps: list[float] = []
+        prompts = []
 
-        @torch.no_grad()
-        def generate_concept_music(concept: Concept):
-            logger.info("Started evaluating %s" % concept.name)
-            results = pl_module.model.model.generate(
-                [self.cfg.prompt_template % " ".join(random.sample(concept.tokens, len(concept.tokens))) for _ in range(self.cfg.n_generations)]
-                # [self.cfg.prompt_template % concept.pseudoword()]
-                # * self.cfg.n_generations
+        def generate_prompts(concept: Concept):
+            prompts.extend(
+                [
+                    (
+                        concept.name,
+                        self.cfg.prompt_template
+                        % " ".join(random.sample(concept.tokens, len(concept.tokens))),
+                    )
+                    for _ in range(self.cfg.n_generations)
+                ]
             )
-            audio_list = []
-            img_list = []
-            for a_idx, music in enumerate(results):
-                music = music.cpu()
-                music = music / np.max(np.abs(music.numpy()))
-                path = OUTPUT_PATH(
-                    self.base_dir, concept.name, "temp", f"music_p{a_idx}"
+
+        self.cfg.concepts.execute(generate_prompts)
+
+        prompts_batches = partition_all(self.cfg.generation_batch, prompts)
+        audio_list = {}
+        img_list = []
+        concept_counter = {}
+
+        def save_audio(audio: torch.Tensor, concept_name: str):
+            ctn = concept_counter.get(concept_name, 0)
+            path = OUTPUT_PATH(self.base_dir, concept_name, "temp", f"music_p{ctn}")
+            audio_write(path, audio, pl_module.model.model.cfg.sample_rate)
+            concept_audio = audio_list.get(concept_name, [])
+            concept_audio.append(
+                wandb.Audio(
+                    path + ".wav",
+                    sample_rate=pl_module.model.model.cfg.sample_rate,
+                    caption=f"{concept_name} audio {ctn}",
                 )
-                audio_write(path, music, pl_module.model.model.cfg.sample_rate)
-                audio_list.append(
-                    wandb.Audio(
-                        path + ".wav",
-                        sample_rate=pl_module.model.model.cfg.sample_rate,
-                        caption=f"{concept.name} audio {a_idx}",
-                    )
+            )
+            audio_list[concept_name] = concept_audio
+
+            if self.cfg.calc_spectrogram:
+                spectrogram = audio_to_spectrogram_image(
+                    audio.numpy(), pl_module.model.model.cfg.sample_rate
                 )
-                if self.cfg.calc_spectrogram:
-                    spectrogram = audio_to_spectrogram_image(
-                        music.numpy(), pl_module.model.model.cfg.sample_rate
-                    )
-                    img_list.append(
-                        wandb.Image(spectrogram, caption=f"Spectrogram {a_idx}")
-                    )
-            plots = {
-                f"{concept.name}_audio": audio_list[:5],
+                img_list.append(wandb.Image(spectrogram, caption=f"Spectrogram {ctn}"))
+
+            concept_counter[concept_name] = ctn + 1
+
+        for prompts_batch in prompts_batches:
+            concepts, prompts = list(zip(*prompts_batch))
+            with torch.no_grad():
+                results = pl_module.model.model.generate(prompts).cpu()
+            results = results / np.max(np.abs(results.numpy()))
+            for concept_name, audio in zip(concepts, results):
+                save_audio(audio, concept_name)
+
+        plots = {
+            f"{concept_name}_audio": concept_audio[:5]
+            for concept_name, concept_audio in audio_list.items()
+        }
+        plots.update(
+            {
                 "global_step": trainer.global_step,
             }
-            if self.cfg.calc_spectrogram:
-                plots[f"{concept.name}_spectrogram"] = img_list
-            pl_module.logger.experiment.log(plots)
+        )
+
+        pl_module.logger.experiment.log(plots)
 
         def calc_fad(concept: Concept):
             score = self._calc_fad_fadtk(concept.name)
@@ -202,7 +231,6 @@ class GenEvalCallback(L.Callback):
             fads.append(score)
 
         # trainer.callbacks[0].apply_ema(pl_module)
-        self.cfg.concepts.execute(generate_concept_music)
         # trainer.callbacks[0].remove_ema(pl_module)
 
         logger.info("Calculating FAD")
