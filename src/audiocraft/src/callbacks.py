@@ -12,15 +12,19 @@ import librosa
 import librosa.display
 import numpy as np
 import matplotlib.pyplot as plt
-
+import json
 from audiocraft.data.audio import audio_write
 import dataclasses
 from pathlib import Path
 from data import Concept, TextConcepts
 from data_const import Datasets
-from audioldm_eval.metrics.fad import FrechetAudioDistance
+from fadtk.model_loader import CLAPLaionModel
+from fadtk.fad import FrechetAudioDistance
 import logging
-
+from metrics import calc_fad, calc_clap
+from utils import suppress_all_output
+import shutil
+import random
 logger = logging.getLogger(__name__)
 
 
@@ -67,6 +71,41 @@ def audio_to_spectrogram_image(audio, sr):
     plt.close(fig)
     return spectrogram_image
 
+class EMACallback(L.Callback):
+    def __init__(self, decay=0.9999):
+        super().__init__()
+        self.decay = decay
+        self.ema_weights = None
+        self.old_weights = None
+
+    def on_train_start(self, trainer, pl_module):
+        ids = pl_module.model.db.all_token_ids
+        self.ema_weights = pl_module.model.text_weights[ids].clone()
+
+    @torch.no_grad()
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        ids = pl_module.model.db.all_token_ids
+        self.ema_weights = (
+                    self.decay * self.ema_weights +
+                    (1 - self.decay) * pl_module.model.text_weights[ids].clone()
+                )
+
+    def apply_ema(self, pl_module):
+        if self.ema_weights is None:
+            return
+        logger.info("EMA applied")
+        ids = pl_module.model.db.all_token_ids
+        old_embeds = pl_module.model.text_weights[ids].clone()
+        self.old_weights = old_embeds
+        pl_module.model.text_weights[ids] = self.ema_weights
+        return old_embeds
+    
+    def remove_ema(self, pl_module):
+        if self.old_weights is None:
+            return
+        logger.info("EMA removed")
+        ids = pl_module.model.db.all_token_ids
+        pl_module.model.text_weights[ids] = self.old_weights
 
 class GenEvalCallback(L.Callback):
     def __init__(
@@ -79,6 +118,8 @@ class GenEvalCallback(L.Callback):
         self.fad = fad
         self.cfg = cfg
         self.base_dir = base_dir.value
+        with open(INPUT_PATH(self.base_dir, 'metadata_concepts.json'), 'r') as fh:
+            self.concept_descriptions = json.load(fh)
 
     def _calc_fad(self, concept: str):
         with contextlib.redirect_stdout(io.StringIO()):
@@ -94,18 +135,35 @@ class GenEvalCallback(L.Callback):
             if isinstance(fd_score, int):
                 return -1
             return list(fd_score.values())[0] * 1e-5
+    
+    def _calc_fad_fadtk(self, concept: str):
+            gen_path = OUTPUT_PATH(self.base_dir, concept, "temp")
+            ref_path = INPUT_PATH(self.base_dir, 'data', 'train', concept, "audio")
+            with suppress_all_output():
+                for f in Path(gen_path).glob("*.*"):
+                    self.fad.cache_embedding_file(f)
+                for f in Path(ref_path).glob("*.*"):
+                    self.fad.cache_embedding_file(f)
+                score = self.fad.score(ref_path, gen_path)
+                shutil.rmtree(os.path.join(gen_path, "embeddings"))
+                shutil.rmtree(os.path.join(gen_path, "convert"))
+                shutil.rmtree(os.path.join(gen_path, "stats"))
+            return score
 
     def on_validation_epoch_end(self, trainer, pl_module):
         if trainer.current_epoch % self.cfg.n_epochs != 0:
             return
         logger.info(f"Generation time at epoch {trainer.current_epoch + 1}")
         fads: list[float] = []
+        claps: list[float] = []
 
-        def evaluate_concept(concept: Concept):
+        @torch.no_grad()
+        def generate_concept_music(concept: Concept):
             logger.info("Started evaluating %s" % concept.name)
             results = pl_module.model.model.generate(
-                [self.cfg.prompt_template % concept.pseudoword()]
-                * self.cfg.n_generations
+                [self.cfg.prompt_template % " ".join(random.sample(concept.tokens, len(concept.tokens))) for _ in range(self.cfg.n_generations)]
+                # [self.cfg.prompt_template % concept.pseudoword()]
+                # * self.cfg.n_generations
             )
             audio_list = []
             img_list = []
@@ -137,16 +195,35 @@ class GenEvalCallback(L.Callback):
             if self.cfg.calc_spectrogram:
                 plots[f"{concept.name}_spectrogram"] = img_list
             pl_module.logger.experiment.log(plots)
-            fad_score = self._calc_fad(concept.name)
-            if fad_score != -1:
-                pl_module.log(f"FAD {concept.name}", fad_score)
-                fads.append(fad_score)
-            else:
-                logging.error("FAD %s RETURN -1" % concept.name)
 
-        self.cfg.concepts.execute(evaluate_concept)
+        def calc_fad(concept: Concept):
+            score = self._calc_fad_fadtk(concept.name)
+            pl_module.log(f"CLAP_FAD {concept.name}", score)
+            fads.append(score)
+
+        # trainer.callbacks[0].apply_ema(pl_module)
+        self.cfg.concepts.execute(generate_concept_music)
+        # trainer.callbacks[0].remove_ema(pl_module)
+
+        logger.info("Calculating FAD")
+        self.cfg.concepts.execute(calc_fad)
+        # for name, val in calc_fad(
+        #     self.base_dir, self.cfg.concepts.concepts_names
+        # ).items():
+        #     pl_module.log(f"FAD {name}", val)
+        #     fads.append(val)
+        # logger.info("Calculating CLAP")
+        # for name, val in calc_clap(
+        #     self.base_dir, {k: v for k,v in self.concept_descriptions.items() if k in self.cfg.concepts.concepts_names}
+        # ).items():
+        #     pl_module.log(f"CLAP {name}", val)
+        #     claps.append(val)
+
         if len(fads) > 0:
             pl_module.log(f"fad_avg", np.mean(fads))
+
+        # if len(claps) > 0:
+        #     pl_module.log(f"clap_avg", np.mean(claps))
 
 
 class SaveEmbeddingsCallback(L.Callback):
@@ -167,23 +244,23 @@ class SaveEmbeddingsCallback(L.Callback):
             for c in cfg.concepts.concepts.values()
         }
 
-    def on_validation_end(self, trainer, pl_module):
+    def on_validation_epoch_end(self, trainer, pl_module):
         if trainer.current_epoch % self.cfg.n_epochs != 0:
             return
 
         def update_best(concept: Concept):
             metrics = trainer.callback_metrics
-            current_score = metrics.get(f"FAD {concept}")
+            current_score = metrics.get(f"FAD {concept.name}")
             if current_score is None or current_score > self.best_score[concept.name]:
                 return
             logger.info(
                 f"Updating best saved embedings for {concept.name} at {trainer.current_epoch} epoch"
             )
             self.best_score[concept.name] = current_score.cpu().item()
-            self.best_embeds[concept.name] = ConceptEmbeds(
-                trainer.current_epoch,
-                self.weights[concept.token_ids].detach().cpu(),
-            )
+            self.best_embeds[concept.name] = {
+                "epoch": trainer.current_epoch,
+                "embeds": self.weights[concept.token_ids].detach().cpu(),
+            }
 
         self.cfg.concepts.execute(update_best)
         wandb_logger = trainer.logger
@@ -194,3 +271,7 @@ class SaveEmbeddingsCallback(L.Callback):
         save_file_path = MODELS_PATH(self.base_dir, f"{run_name}-best.pt")
         Path(MODELS_PATH(self.base_dir)).mkdir(parents=True, exist_ok=True)
         torch.save(self.best_embeds, save_file_path)
+        values = self.best_score.values()
+        valid_values = [x for x in values if x is not None and np.isfinite(x)]
+        if len(valid_values) > 0:
+            pl_module.log(f"fad_best_avg", np.mean(valid_values))

@@ -11,11 +11,15 @@ import random
 from data import TokensProvider
 import tqdm
 from argparse import ArgumentParser
+from toolz import partition_all, concat
+import json
+import pytorch_lightning as L
 
-
+import shutil
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 PROMPT = "In the style of %s"
 DATASET = "concepts-dataset"
+DESCRIPTIONS = {}
 
 parser = ArgumentParser(add_help=False)
 parser.add_argument("--model", type=str, default="ti")
@@ -59,8 +63,21 @@ def gen_ti(
 
     print("Started generation")
     for concept in tqdm.tqdm(concepts):
-        prompt = PROMPT % tokens_provider.get_str(concept)
-        res = model.generate([prompt] * num, progress=True)
+        if os.path.exists(OUTPUT_PATH(out_dir, concept)):
+            shutil.rmtree(OUTPUT_PATH(out_dir, concept))
+            os.makedirs(OUTPUT_PATH(out_dir, concept), exist_ok=True)
+        # prompt = f'{DESCRIPTIONS[concept]}. {PROMPT % tokens_provider.get_str(concept)}'
+        # prompts = []
+        # for c, desc in DESCRIPTIONS.items():
+        #     prompts.append(f'{PROMPT % tokens_provider.get_str(concept)}. {desc}. ')
+        # prompts = [f'{random.choice(list(DESCRIPTIONS.values()))}. {PROMPT % tokens_provider.get_str(concept)}' for _ in range(num)]
+        prompt = f'{DESCRIPTIONS[concept]}'
+        prompts = partition_all(50, [prompt] * num)
+        # prompts = partition_all(50, prompts)
+        res = []
+        for batch in prompts:
+            res.append(model.generate(batch, progress=True).cpu())
+        res = torch.stack(list(concat(res))).cpu()
         for a_idx in range(res.shape[0]):
             music = res[a_idx].cpu()
             music = music / np.max(np.abs(music.numpy()))
@@ -112,8 +129,11 @@ def gen_style(concepts, duration=5, num=10, ds_name=DATASET):
 
 
 if __name__ == "__main__":
+    L.seed_everything(42, workers=True)
     args = parser.parse_args()
     if args.model == "ti":
+        with open(INPUT_PATH(args.ds_name, 'metadata_concepts.json'), 'r') as fh:
+            DESCRIPTIONS = json.load(fh)
         gen_ti(
             args.run_name,
             args.concepts,

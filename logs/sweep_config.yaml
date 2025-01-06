@@ -1,10 +1,10 @@
-method: bayes
+method: grid
 metric:
   name: fad_avg
   goal: minimize
 parameters:
   examples_len:
-    values: [2, 5]
+    value: 5
   batch_size:
     value: 10
   tokens_num:
@@ -12,7 +12,7 @@ parameters:
   grad_amplify:
     value: 10.0
   entropy_alpha:
-    values: [1.0, 10]
+    value: 1.0
   ortho_alpha:
     value: 0.1
   lr:

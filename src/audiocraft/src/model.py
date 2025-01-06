@@ -87,6 +87,7 @@ class TransformerTextualInversion(L.LightningModule):
         super().__init__()
         self.cfg = cfg
         self.model = model
+        self.old_weights = None
 
     @staticmethod
     def get_ti_model(model: MusicGen, cfg: ModelConfig) -> TIMusicGen:
