@@ -15,6 +15,7 @@ import logging
 from typing import Callable
 from functools import cached_property
 from toolz import concat
+import random
 
 NUM_WORKERS = int(os.cpu_count() * 0.75)
 logger = logging.getLogger(__name__)
@@ -189,10 +190,13 @@ class ConceptDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         row = self.ds[idx]
         concept = row["concept"]
+        random_tokens = random.sample(self.concepts_db[concept].tokens, len(self.concepts_db[concept].tokens))
+        random_prompt = self.prompter.get(" ".join(random_tokens))
         return {
             "encoded_music": self._random_slice(self.encoded_musics[idx]),
             "concept": concept,
-            "prompt": self.prompter.get(self.concepts_db[concept].pseudoword()),
+            # "prompt": self.prompter.get(self.concepts_db[concept].pseudoword()),
+            "prompt": random_prompt,
             "new_tokens_ids": self.concepts_db[concept].token_ids,
         }
 

@@ -1,6 +1,6 @@
 method: grid
 metric:
-  name: fad_best_avg
+  name: fad_avg
   goal: minimize
 parameters:
   examples_len:
@@ -8,7 +8,7 @@ parameters:
   batch_size:
     value: 10
   tokens_num:
-    value: 20
+    values: [5, 10, 20]
   grad_amplify:
     value: 10.0
   entropy_alpha:
@@ -22,13 +22,6 @@ parameters:
   cfg_coef:
     value: 3.0
   concepts:
-    values: 
-      - ['80s-synth']
-      - ['choir']
-      - ['saxophone-chillout', 'metal-solos']
-      - ['8bit-slow', '8bit']
-      - ['two-steps', 'bells', 'pirates']
-      - ['80s-synth', 'saxophone-chillout', 'b-minor-rock', 'metal-solos']
-      - ['two-steps', 'chillout', 'metal-solos', '8bit-slow', 'choir', '8bit', 'piano', '80s-synth', 'saxophone-chillout', 'b-minor-rock', 'bells', 'pirates']
+    value: ['two-steps', 'chillout', 'metal-solos', '8bit-slow', 'choir', '8bit', 'piano', '80s-synth', 'saxophone-chillout', 'b-minor-rock', 'bells', 'pirates']
   model_name:
     value: "small"

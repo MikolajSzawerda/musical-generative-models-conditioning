@@ -18,10 +18,13 @@ import dataclasses
 from pathlib import Path
 from data import Concept, TextConcepts
 from data_const import Datasets
-from audioldm_eval.metrics.fad import FrechetAudioDistance
+from fadtk.model_loader import CLAPLaionModel
+from fadtk.fad import FrechetAudioDistance
 import logging
 from metrics import calc_fad, calc_clap
-
+from utils import suppress_all_output
+import shutil
+import random
 logger = logging.getLogger(__name__)
 
 
@@ -68,6 +71,41 @@ def audio_to_spectrogram_image(audio, sr):
     plt.close(fig)
     return spectrogram_image
 
+class EMACallback(L.Callback):
+    def __init__(self, decay=0.9999):
+        super().__init__()
+        self.decay = decay
+        self.ema_weights = None
+        self.old_weights = None
+
+    def on_train_start(self, trainer, pl_module):
+        ids = pl_module.model.db.all_token_ids
+        self.ema_weights = pl_module.model.text_weights[ids].clone()
+
+    @torch.no_grad()
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        ids = pl_module.model.db.all_token_ids
+        self.ema_weights = (
+                    self.decay * self.ema_weights +
+                    (1 - self.decay) * pl_module.model.text_weights[ids].clone()
+                )
+
+    def apply_ema(self, pl_module):
+        if self.ema_weights is None:
+            return
+        logger.info("EMA applied")
+        ids = pl_module.model.db.all_token_ids
+        old_embeds = pl_module.model.text_weights[ids].clone()
+        self.old_weights = old_embeds
+        pl_module.model.text_weights[ids] = self.ema_weights
+        return old_embeds
+    
+    def remove_ema(self, pl_module):
+        if self.old_weights is None:
+            return
+        logger.info("EMA removed")
+        ids = pl_module.model.db.all_token_ids
+        pl_module.model.text_weights[ids] = self.old_weights
 
 class GenEvalCallback(L.Callback):
     def __init__(
@@ -97,6 +135,20 @@ class GenEvalCallback(L.Callback):
             if isinstance(fd_score, int):
                 return -1
             return list(fd_score.values())[0] * 1e-5
+    
+    def _calc_fad_fadtk(self, concept: str):
+            gen_path = OUTPUT_PATH(self.base_dir, concept, "temp")
+            ref_path = INPUT_PATH(self.base_dir, 'data', 'train', concept, "audio")
+            with suppress_all_output():
+                for f in Path(gen_path).glob("*.*"):
+                    self.fad.cache_embedding_file(f)
+                for f in Path(ref_path).glob("*.*"):
+                    self.fad.cache_embedding_file(f)
+                score = self.fad.score(ref_path, gen_path)
+                shutil.rmtree(os.path.join(gen_path, "embeddings"))
+                shutil.rmtree(os.path.join(gen_path, "convert"))
+                shutil.rmtree(os.path.join(gen_path, "stats"))
+            return score
 
     def on_validation_epoch_end(self, trainer, pl_module):
         if trainer.current_epoch % self.cfg.n_epochs != 0:
@@ -105,11 +157,13 @@ class GenEvalCallback(L.Callback):
         fads: list[float] = []
         claps: list[float] = []
 
+        @torch.no_grad()
         def generate_concept_music(concept: Concept):
             logger.info("Started evaluating %s" % concept.name)
             results = pl_module.model.model.generate(
-                [self.cfg.prompt_template % concept.pseudoword()]
-                * self.cfg.n_generations
+                [self.cfg.prompt_template % " ".join(random.sample(concept.tokens, len(concept.tokens))) for _ in range(self.cfg.n_generations)]
+                # [self.cfg.prompt_template % concept.pseudoword()]
+                # * self.cfg.n_generations
             )
             audio_list = []
             img_list = []
@@ -142,25 +196,34 @@ class GenEvalCallback(L.Callback):
                 plots[f"{concept.name}_spectrogram"] = img_list
             pl_module.logger.experiment.log(plots)
 
+        def calc_fad(concept: Concept):
+            score = self._calc_fad_fadtk(concept.name)
+            pl_module.log(f"CLAP_FAD {concept.name}", score)
+            fads.append(score)
+
+        # trainer.callbacks[0].apply_ema(pl_module)
         self.cfg.concepts.execute(generate_concept_music)
+        # trainer.callbacks[0].remove_ema(pl_module)
+
         logger.info("Calculating FAD")
-        for name, val in calc_fad(
-            self.base_dir, self.cfg.concepts.concepts_names
-        ).items():
-            pl_module.log(f"FAD {name}", val)
-            fads.append(val)
-        logger.info("Calculating CLAP")
-        for name, val in calc_clap(
-            self.base_dir, {k: v for k,v in self.concept_descriptions.items() if k in self.cfg.concepts.concepts_names}
-        ).items():
-            pl_module.log(f"CLAP {name}", val)
-            claps.append(val)
+        self.cfg.concepts.execute(calc_fad)
+        # for name, val in calc_fad(
+        #     self.base_dir, self.cfg.concepts.concepts_names
+        # ).items():
+        #     pl_module.log(f"FAD {name}", val)
+        #     fads.append(val)
+        # logger.info("Calculating CLAP")
+        # for name, val in calc_clap(
+        #     self.base_dir, {k: v for k,v in self.concept_descriptions.items() if k in self.cfg.concepts.concepts_names}
+        # ).items():
+        #     pl_module.log(f"CLAP {name}", val)
+        #     claps.append(val)
 
         if len(fads) > 0:
             pl_module.log(f"fad_avg", np.mean(fads))
 
-        if len(claps) > 0:
-            pl_module.log(f"clap_avg", np.mean(claps))
+        # if len(claps) > 0:
+        #     pl_module.log(f"clap_avg", np.mean(claps))
 
 
 class SaveEmbeddingsCallback(L.Callback):

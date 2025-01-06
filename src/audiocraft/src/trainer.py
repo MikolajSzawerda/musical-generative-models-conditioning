@@ -7,7 +7,8 @@ from data import ConceptDataModule, get_ds
 from argparse import ArgumentParser
 import yaml
 from audiocraft.models import MusicGen
-from audioldm_eval.metrics.fad import FrechetAudioDistance
+from fadtk.model_loader import CLAPLaionModel
+from fadtk.fad import FrechetAudioDistance
 import logging
 from data_const import Datasets
 from model import ModelConfig, TransformerTextualInversion
@@ -16,7 +17,9 @@ from callbacks import (
     EvaluationCallbackConfig,
     SaveEmbeddingsCallback,
     GenEvalCallback,
+    EMACallback
 )
+from utils import suppress_all_output
 
 logger = logging.getLogger(__name__)
 
@@ -68,8 +71,8 @@ def run_exp(cfg: ModelConfig, wandb_logger):
         music_len=249,
         batch_size=cfg.batch_size,
     )
-
-    fad = FrechetAudioDistance(verbose=True, use_pca=True, use_activation=True)
+    with suppress_all_output():
+        fad = FrechetAudioDistance(CLAPLaionModel('music'))
 
     quick_save_cl = SaveEmbeddingsCallback(
         EXP_DATASET,
@@ -89,6 +92,7 @@ def run_exp(cfg: ModelConfig, wandb_logger):
     )
     trainer = L.Trainer(
         callbacks=[
+            # EMACallback(0.05),
             eval_cl,
             quick_save_cl,
             early_stopping,
@@ -151,8 +155,8 @@ if __name__ == "__main__":
         parser.add_argument("--tokens-num", type=int, default=20)
         parser.add_argument("--batch-size", type=int, default=10)
         parser.add_argument("--grad-amplify", type=float, default=10.0)
-        parser.add_argument("--entropy-alpha", type=float, default=1e1)
-        parser.add_argument("--ortho-alpha", type=float, default=1e-2)
+        parser.add_argument("--entropy-alpha", type=float, default=1e0)
+        parser.add_argument("--ortho-alpha", type=float, default=1e-1)
         parser.add_argument("--cr-margin", type=float, default=1.5)
         parser.add_argument("--cfg-coef", type=float, default=3.0)
         parser.add_argument("--lr", type=float, default=1e-1)
