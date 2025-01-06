@@ -72,7 +72,8 @@ def run_exp(cfg: ModelConfig, wandb_logger):
         batch_size=cfg.batch_size,
     )
     with suppress_all_output():
-        fad = FrechetAudioDistance(CLAPLaionModel('music'))
+        clap = CLAPLaionModel('music')
+        fad = FrechetAudioDistance(clap)
 
     quick_save_cl = SaveEmbeddingsCallback(
         EXP_DATASET,
@@ -84,6 +85,7 @@ def run_exp(cfg: ModelConfig, wandb_logger):
     )
     eval_cl = GenEvalCallback(
         fad,
+        clap,
         EXP_DATASET,
         EvaluationCallbackConfig(
             model.model.db,

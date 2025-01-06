@@ -27,7 +27,7 @@ import shutil
 import random
 from toolz import partition_all, concat
 import uuid
-
+import tqdm
 logger = logging.getLogger(__name__)
 
 
@@ -45,7 +45,8 @@ class EvaluationCallbackConfig:
     n_generations: int = 10
     prompt_template: str = "In the style of %s"
     calc_spectrogram: bool = False
-    generation_batch: int = 30
+    generation_batch: int = 10
+    generation_duration: int = 5
 
 
 @dataclasses.dataclass
@@ -117,11 +118,13 @@ class GenEvalCallback(L.Callback):
     def __init__(
         self,
         fad: FrechetAudioDistance,
+        clap: CLAPLaionModel,
         base_dir: Datasets,
         cfg: EvaluationCallbackConfig,
     ):
         super().__init__()
         self.fad = fad
+        self.clap = clap
         self.cfg = cfg
         self.base_dir = base_dir.value
         with open(INPUT_PATH(self.base_dir, "metadata_concepts.json"), "r") as fh:
@@ -141,6 +144,15 @@ class GenEvalCallback(L.Callback):
             if isinstance(fd_score, int):
                 return -1
             return list(fd_score.values())[0] * 1e-5
+    
+    @staticmethod
+    def cosine_similarity(a, b):
+        return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+    
+    def _calc_clap_score(self, concept: str, path: str):
+        audio_embeds = self.fad.load_embeddings(path)
+        text_embeds = self.clap.model.get_text_embedding(self.concept_descriptions[concept]).reshape(-1)
+        return np.mean(self.cosine_similarity(audio_embeds, text_embeds))
 
     def _calc_fad_fadtk(self, concept: str):
         gen_path = OUTPUT_PATH(self.base_dir, concept, "temp")
@@ -151,16 +163,19 @@ class GenEvalCallback(L.Callback):
             for f in Path(ref_path).glob("*.*"):
                 self.fad.cache_embedding_file(f)
             score = self.fad.score(ref_path, gen_path)
+            glob_score = self.fad.score('fma_pop', gen_path)
+            clap_score = self._calc_clap_score(concept, gen_path)
             shutil.rmtree(os.path.join(gen_path, "embeddings"))
             shutil.rmtree(os.path.join(gen_path, "convert"))
             shutil.rmtree(os.path.join(gen_path, "stats"))
-        return score
+        return score, glob_score, clap_score
 
     def on_validation_epoch_end(self, trainer, pl_module):
         if trainer.current_epoch % self.cfg.n_epochs != 0:
             return
         logger.info(f"Generation time at epoch {trainer.current_epoch + 1}")
         fads: list[float] = []
+        ds_fads: list[float] = []
         claps: list[float] = []
         prompts = []
 
@@ -204,14 +219,16 @@ class GenEvalCallback(L.Callback):
                 img_list.append(wandb.Image(spectrogram, caption=f"Spectrogram {ctn}"))
 
             concept_counter[concept_name] = ctn + 1
-
-        for prompts_batch in prompts_batches:
+        old_duration = pl_module.model.model.duration
+        pl_module.model.model.set_generation_params(duration=self.cfg.generation_duration)
+        for prompts_batch in tqdm.tqdm(prompts_batches):
             concepts, prompts = list(zip(*prompts_batch))
             with torch.no_grad():
                 results = pl_module.model.model.generate(prompts).cpu()
             results = results / np.max(np.abs(results.numpy()))
             for concept_name, audio in zip(concepts, results):
                 save_audio(audio, concept_name)
+        pl_module.model.model.set_generation_params(duration=old_duration)
 
         plots = {
             f"{concept_name}_audio": concept_audio[:5]
@@ -226,32 +243,24 @@ class GenEvalCallback(L.Callback):
         pl_module.logger.experiment.log(plots)
 
         def calc_fad(concept: Concept):
-            score = self._calc_fad_fadtk(concept.name)
-            pl_module.log(f"CLAP_FAD {concept.name}", score)
-            fads.append(score)
-
-        # trainer.callbacks[0].apply_ema(pl_module)
-        # trainer.callbacks[0].remove_ema(pl_module)
+            score, q_score, clap_score = self._calc_fad_fadtk(concept.name)
+            pl_module.log(f"DS_FAD {concept.name}", score)
+            pl_module.log(f"FAD {concept.name}", q_score)
+            pl_module.log(f"CLAP {concept.name}", clap_score)
+            fads.append(q_score)
+            ds_fads.append(score)
+            claps.append(clap_score)
 
         logger.info("Calculating FAD")
         self.cfg.concepts.execute(calc_fad)
-        # for name, val in calc_fad(
-        #     self.base_dir, self.cfg.concepts.concepts_names
-        # ).items():
-        #     pl_module.log(f"FAD {name}", val)
-        #     fads.append(val)
-        # logger.info("Calculating CLAP")
-        # for name, val in calc_clap(
-        #     self.base_dir, {k: v for k,v in self.concept_descriptions.items() if k in self.cfg.concepts.concepts_names}
-        # ).items():
-        #     pl_module.log(f"CLAP {name}", val)
-        #     claps.append(val)
 
         if len(fads) > 0:
             pl_module.log(f"fad_avg", np.mean(fads))
+        if len(fads) > 0:
+            pl_module.log(f"fad_ds_avg", np.mean(ds_fads))
 
-        # if len(claps) > 0:
-        #     pl_module.log(f"clap_avg", np.mean(claps))
+        if len(claps) > 0:
+            pl_module.log(f"clap_avg", np.mean(claps))
 
 
 class SaveEmbeddingsCallback(L.Callback):
