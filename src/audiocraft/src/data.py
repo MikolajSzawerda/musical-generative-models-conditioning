@@ -139,6 +139,7 @@ class ConceptDataset(torch.utils.data.Dataset):
         music_len: int = 100,
         pad_value: int = 0,
         preload_ds=True,
+        randomize_tokens=True
     ):
         self.ds = ds
         self.base_dir: str = INPUT_PATH(base_dir.value)
@@ -147,6 +148,7 @@ class ConceptDataset(torch.utils.data.Dataset):
         self.prompter = PromptProvider(val_desc if split == "valid" else train_desc)
         self.music_len = music_len
         self.split = split
+        self.randomize_tokens = randomize_tokens
         if preload_ds:
             self._preload_encoded(ds, pad_value)
 
@@ -190,13 +192,16 @@ class ConceptDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         row = self.ds[idx]
         concept = row["concept"]
-        random_tokens = random.sample(self.concepts_db[concept].tokens, len(self.concepts_db[concept].tokens))
-        random_prompt = self.prompter.get(" ".join(random_tokens))
+        if self.randomize_tokens:
+            random_tokens = random.sample(self.concepts_db[concept].tokens, len(self.concepts_db[concept].tokens))
+            prompt = self.prompter.get(" ".join(random_tokens))
+        else:
+            prompt = self.prompter.get(self.concepts_db[concept].pseudoword())
         return {
             "encoded_music": self._random_slice(self.encoded_musics[idx]),
             "concept": concept,
             # "prompt": self.prompter.get(self.concepts_db[concept].pseudoword()),
-            "prompt": random_prompt,
+            "prompt": prompt,
             "new_tokens_ids": self.concepts_db[concept].token_ids,
         }
 
@@ -218,6 +223,7 @@ class ConceptDataModule(L.LightningDataModule):
         music_len: int = 255,
         batch_size: int = 5,
         with_valid: bool = True,
+        randomize_tokens = True
     ):
         super().__init__()
         self.music_len = music_len
@@ -226,6 +232,7 @@ class ConceptDataModule(L.LightningDataModule):
         self.concepts_db = concepts_db
         self.base_dir = base_dir
         self.with_valid = with_valid
+        self.randomize_tokens = randomize_tokens
 
     @classmethod
     def from_init(
@@ -247,6 +254,7 @@ class ConceptDataModule(L.LightningDataModule):
             self.concepts_db,
             self.base_dir,
             self.music_len,
+            randomize_tokens=self.randomize_tokens
         )
         if self.with_valid:
             self._val_ds = ConceptDataset(
@@ -255,6 +263,7 @@ class ConceptDataModule(L.LightningDataModule):
                 self.concepts_db,
                 self.base_dir,
                 self.music_len,
+                randomize_tokens=self.randomize_tokens
             )
 
     def train_dataloader(self) -> DataLoader:

@@ -6,9 +6,9 @@ parameters:
   examples_len:
     value: 5
   batch_size:
-    value: 10
+    value: 20
   tokens_num:
-    values: [10, 20]
+    value: 20
   grad_amplify:
     value: 10.0
   entropy_alpha:
@@ -25,3 +25,5 @@ parameters:
     value: ['two-steps', 'chillout', 'metal-solos', '8bit-slow', 'choir', '8bit', 'piano', '80s-synth', 'saxophone-chillout', 'b-minor-rock', 'bells', 'pirates']
   model_name:
     value: "small"
+  randomize_tokens:
+    values: [True, False]

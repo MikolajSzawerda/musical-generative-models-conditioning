@@ -31,6 +31,7 @@ class ModelConfig:
     batch_size: int = 10
     cr_margin: float = 1.5
     cfg_coef: float = 3.0
+    randomize_tokens: bool = True
     # previous_run: str = ''
 
 

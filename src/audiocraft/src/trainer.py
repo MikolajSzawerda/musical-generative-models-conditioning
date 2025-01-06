@@ -24,7 +24,8 @@ from utils import suppress_all_output
 logger = logging.getLogger(__name__)
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-WANDB_PROJECT = "small-musicgen-textual-inversion"
+
+WANDB_PROJECT = "textual-inversion-medium"
 SEED = 42
 
 EXP_DATASET = Datasets.CONCEPTS_DATASET
@@ -70,6 +71,7 @@ def run_exp(cfg: ModelConfig, wandb_logger):
         base_dir=EXP_DATASET,
         music_len=249,
         batch_size=cfg.batch_size,
+        randomize_tokens = cfg.randomize_tokens
     )
     with suppress_all_output():
         clap = CLAPLaionModel('music')
@@ -92,6 +94,7 @@ def run_exp(cfg: ModelConfig, wandb_logger):
         EvaluationCallbackConfig(
             model.model.db,
             cfg.tokens_num,
+            randomize_tokens=cfg.randomize_tokens
         ),
     )
     trainer = L.Trainer(
@@ -136,6 +139,7 @@ def run_args_exp(args):
     wandb_logger.experiment.config["grad_amplify"] = args.grad_amplify
     wandb_logger.experiment.config["cr_margin"] = args.cr_margin
     wandb_logger.experiment.config["cfg_coef"] = args.cfg_coef
+    wandb_logger.experiment.config["randomize_tokens"] = args.randomize_tokens
     run_exp(args, wandb_logger)
 
 
@@ -165,6 +169,7 @@ if __name__ == "__main__":
         parser.add_argument("--cfg-coef", type=float, default=3.0)
         parser.add_argument("--lr", type=float, default=1e-1)
         parser.add_argument("--model-name", type=str, default="small")
+        parser.add_argument("--randomize-tokens", type=bool, default=True)
         # parser.add_argument("--previous-run", type=str, default="")
         parser.add_argument("--concepts", nargs="+", default=["8bit"])
         run_args_exp(parser.parse_args())

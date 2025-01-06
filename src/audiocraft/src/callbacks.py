@@ -48,8 +48,9 @@ class EvaluationCallbackConfig:
     n_generations: int = 10
     prompt_template: str = "In the style of %s"
     calc_spectrogram: bool = False
-    generation_batch: int = 10
+    generation_batch: int = 50
     generation_duration: int = 5
+    randomize_tokens: bool = True
 
 
 @dataclasses.dataclass
@@ -202,12 +203,16 @@ class GenEvalCallback(L.Callback):
         prompts = []
 
         def generate_prompts(concept: Concept):
+            if self.cfg.randomize_tokens:
+                tokens = " ".join(random.sample(concept.tokens, len(concept.tokens)))
+            else:
+                tokens = concept.pseudoword()
             prompts.extend(
                 [
                     (
                         concept.name,
                         self.cfg.prompt_template
-                        % " ".join(random.sample(concept.tokens, len(concept.tokens))),
+                        % tokens,
                     )
                     for _ in range(self.cfg.n_generations)
                 ]
@@ -300,6 +305,7 @@ class SaveEmbeddingsCallback(L.Callback):
             c.name: weights[c.token_ids].detach().cpu()
             for c in cfg.concepts.concepts.values()
         }
+        self.all_embeds = {}
 
     def on_validation_epoch_end(self, trainer, pl_module):
         if trainer.current_epoch % self.cfg.n_epochs != 0:
@@ -307,7 +313,7 @@ class SaveEmbeddingsCallback(L.Callback):
 
         def update_best(concept: Concept):
             metrics = trainer.callback_metrics
-            current_score = metrics.get(f"FAD {concept.name}")
+            current_score = metrics.get(f"DS_FAD {concept.name}")
             if current_score is None or current_score > self.best_score[concept.name]:
                 return
             logger.info(
@@ -318,8 +324,14 @@ class SaveEmbeddingsCallback(L.Callback):
                 "epoch": trainer.current_epoch,
                 "embeds": self.weights[concept.token_ids].detach().cpu(),
             }
+        
+        def append_concept(concept: Concept):
+            epoch_concepts = self.all_embeds.get(concept.name, {})
+            epoch_concepts[concept.name] = self.weights[concept.token_ids].detach().cpu()
+            self.all_embeds[str(trainer.current_epoch)] = epoch_concepts
 
         self.cfg.concepts.execute(update_best)
+        self.cfg.concepts.execute(append_concept)
         wandb_logger = trainer.logger
         if isinstance(wandb_logger, WandbLogger):
             run_name = wandb_logger.experiment.name
@@ -328,6 +340,7 @@ class SaveEmbeddingsCallback(L.Callback):
         save_file_path = MODELS_PATH(self.base_dir, f"{run_name}-best.pt")
         Path(MODELS_PATH(self.base_dir)).mkdir(parents=True, exist_ok=True)
         torch.save(self.best_embeds, save_file_path)
+        torch.save(self.all_embeds, MODELS_PATH(self.base_dir, f"{run_name}-all.pt"))
         values = self.best_score.values()
         valid_values = [x for x in values if x is not None and np.isfinite(x)]
         if len(valid_values) > 0:
