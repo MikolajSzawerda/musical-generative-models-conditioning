@@ -28,6 +28,7 @@ fad = FrechetAudioDistance(model)
 parser = ArgumentParser(add_help=False)
 parser.add_argument("--other", type=str, default="musicgen-style")
 parser.add_argument("--concepts", nargs="+", default=["8bit"])
+parser.add_argument("--out", type=str, default="ti-musicgen-style.json")
 
 
 @torch.no_grad
@@ -136,6 +137,7 @@ if __name__ == "__main__":
         other_embeddings = get_dir_embeds(other_path).numpy()
 
         clap_ti = clap_sim(descriptions[concept], ti_path)
+        clap_base = clap_sim(descriptions[concept], train_path)
         clap_other = clap_sim(descriptions[concept], other_path)
 
         fad_clap_ti = clap_fad(train_path, ti_path)
@@ -146,8 +148,10 @@ if __name__ == "__main__":
         kncc_res_other = kncc(train_embeddings, val_embeddings, other_embeddings)
         knco_res_other = knco(train_embeddings, val_embeddings, other_embeddings)
         result[concept] = {
+            "fad_base": _process_concept(concept, train_path, clear=False)[1],
             "fad_ti": _process_concept(concept, ti_path, clear=False)[1],
             "fad_other": _process_concept(concept, other_path, clear=False)[1],
+            "clap_base": clap_base,
             "clap_ti": clap_ti,
             "clap_other": clap_other,
             "fad_clap_ti": fad_clap_ti,
@@ -157,6 +161,5 @@ if __name__ == "__main__":
             "kncc_other": kncc_res_other,
             "knco_other": knco_res_other,
         }
-    res_name = f"ti-{args.other}.json"
-    with open(OUTPUT_PATH("comparison", res_name), "w") as fh:
+    with open(OUTPUT_PATH("comparison", args.out), "w") as fh:
         json.dump(result, fh, indent=4)

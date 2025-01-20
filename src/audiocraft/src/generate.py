@@ -20,6 +20,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 PROMPT = "In the style of %s"
 DATASET = "concepts-dataset"
 DESCRIPTIONS = {}
+BATCH_SIZE = 50
 
 parser = ArgumentParser(add_help=False)
 parser.add_argument("--model", type=str, default="ti")
@@ -29,7 +30,10 @@ parser.add_argument("--run-name", type=str, default="unknown")
 parser.add_argument("--model-name", type=str, default="small")
 parser.add_argument("--ds-name", type=str, default=DATASET)
 parser.add_argument("--out-dir", type=str, default="musicgen-ti-generated")
+parser.add_argument("--prompt-type", type=str, default="description")
 parser.add_argument("--concepts", nargs="+", default=["8bit"])
+parser.add_argument("--use-all", action="store_true")
+parser.add_argument("--from-epoch", type=str, default=0)
 
 
 @torch.no_grad
@@ -41,8 +45,16 @@ def gen_ti(
     num=10,
     ds_name=DATASET,
     out_dir="musicgen-ti-generated",
+    prompt_type='description',
+    use_all=False,
+    from_epoch="0"
 ):
-    text_emb = torch.load(MODELS_PATH(ds_name, f"{run_name}-best.pt"))
+    if not use_all:
+        text_emb = torch.load(MODELS_PATH(ds_name, f"{run_name}-best.pt"))
+    else:
+        data = torch.load(MODELS_PATH(ds_name, f"{run_name}-all.pt"))
+        text_emb = data[from_epoch]
+        # text_emb = {k: {'embeds': v, 'epoch': from_epoch} for k,v in text_emb.items()}
     print("Loading MusicGen")
     model = MusicGen.get_pretrained(f"facebook/musicgen-{model_name}")
     model.set_generation_params(use_sampling=True, top_k=250, duration=duration)
@@ -66,13 +78,19 @@ def gen_ti(
         if os.path.exists(OUTPUT_PATH(out_dir, concept)):
             shutil.rmtree(OUTPUT_PATH(out_dir, concept))
             os.makedirs(OUTPUT_PATH(out_dir, concept), exist_ok=True)
-        # prompt = f'{DESCRIPTIONS[concept]}. {PROMPT % tokens_provider.get_str(concept)}'
+        if prompt_type == 'description':
+            prompt = f'{DESCRIPTIONS[concept]} {PROMPT % tokens_provider.get_str(concept)}'
+        elif prompt_type == 'inversion':
+            prompt = f'{PROMPT % tokens_provider.get_str(concept)}'
+        else:
+            prompt = f'{DESCRIPTIONS[concept]}'
+        print(f"Running generation for: {prompt}")
         # prompts = []
         # for c, desc in DESCRIPTIONS.items():
         #     prompts.append(f'{PROMPT % tokens_provider.get_str(concept)}. {desc}. ')
         # prompts = [f'{random.choice(list(DESCRIPTIONS.values()))}. {PROMPT % tokens_provider.get_str(concept)}' for _ in range(num)]
-        prompt = f'{DESCRIPTIONS[concept]}'
-        prompts = partition_all(50, [prompt] * num)
+        # prompt = f'{DESCRIPTIONS[concept]}'
+        prompts = partition_all(BATCH_SIZE, [prompt] * num)
         # prompts = partition_all(50, prompts)
         res = []
         for batch in prompts:
@@ -142,6 +160,9 @@ if __name__ == "__main__":
             args.num,
             args.ds_name,
             args.out_dir,
+            args.prompt_type,
+            args.use_all,
+            args.from_epoch
         )
     elif args.model == "style":
         gen_style(args.concepts, args.duration, args.num, args.ds_name)

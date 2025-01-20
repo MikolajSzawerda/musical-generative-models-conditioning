@@ -27,6 +27,7 @@ class ModelConfig:
     lr: float = 1e-1
     model_name: str = "small"
     examples_len: int = 5
+    examples_num: int = 100
     concepts: list[str] = tuple()
     batch_size: int = 10
     cr_margin: float = 1.5
@@ -224,12 +225,16 @@ class TransformerTextualInversion(L.LightningModule):
 
     def configure_optimizers(self):
         optimizer = Adam([self.model.text_weights], lr=self.cfg.lr)
-        # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
-        return (
-            [optimizer],
-            [],
-            # [{"scheduler": scheduler, "interval": "epoch"}]
-        )
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=400, gamma=0.1)
+        return {
+            'optimizer': optimizer,
+            'lr_scheduler': scheduler,
+        }
+        # return (
+        #     [optimizer],
+        #     [],
+        #     # [{"scheduler": scheduler, "interval": "epoch"}]
+        # )
 
 
 def append_new_tokens(tokenizer, tokens_by_concept):

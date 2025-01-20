@@ -5,6 +5,8 @@ metric:
 parameters:
   examples_len:
     value: 5
+  examples_num:
+    values: [10, 100, 200, 400, 700]
   batch_size:
     value: 20
   tokens_num:
@@ -12,7 +14,7 @@ parameters:
   grad_amplify:
     value: 10.0
   entropy_alpha:
-    value: 1.0
+    value: 10.0
   ortho_alpha:
     value: 0.1
   lr:
@@ -22,8 +24,8 @@ parameters:
   cfg_coef:
     value: 3.0
   concepts:
-    value: ['two-steps', 'chillout', 'metal-solos', '8bit-slow', 'choir', '8bit', 'piano', '80s-synth', 'saxophone-chillout', 'b-minor-rock', 'bells', 'pirates']
+    value: ['metal']
   model_name:
-    value: "small"
+    value: "medium"
   randomize_tokens:
-    values: [True, False]
+    value: False

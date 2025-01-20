@@ -104,7 +104,7 @@ def offline_eval(fad, clap, base_dir: str, concepts: list[str], descriptions: di
             for f in files:
                 fad.cache_embedding_file(f)
         cache_path_emb(gen_path)
-        # cache_path_emb(ref_path)
+        cache_path_emb(ref_path)
         mu_gen, cov_gen = fad.load_stats(gen_path)
         mu_ref, cov_ref = fad.load_stats(ref_path)
         score = calc_frechet_distance(mu_ref, cov_ref, mu_gen, cov_gen)
@@ -326,9 +326,13 @@ class SaveEmbeddingsCallback(L.Callback):
             }
         
         def append_concept(concept: Concept):
-            epoch_concepts = self.all_embeds.get(concept.name, {})
-            epoch_concepts[concept.name] = self.weights[concept.token_ids].detach().cpu()
-            self.all_embeds[str(trainer.current_epoch)] = epoch_concepts
+            key = str(trainer.current_epoch)
+            epoch_concepts = self.all_embeds.get(key, {})
+            epoch_concepts[concept.name] = {
+                'epoch': trainer.current_epoch,
+                "embeds": self.weights[concept.token_ids].detach().cpu(),
+            }
+            self.all_embeds[key] = epoch_concepts
 
         self.cfg.concepts.execute(update_best)
         self.cfg.concepts.execute(append_concept)
