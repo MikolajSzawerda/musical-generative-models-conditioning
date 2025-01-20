@@ -1,18 +1,18 @@
-from data import TextConcepts, Concept
-from losses import compute_cross_entropy, compute_ortho_loss
+from .data import TextConcepts, Concept, ConceptEmbeds
+from .losses import compute_cross_entropy, compute_ortho_loss
+from .data import ConceptDataModule, get_ds, TokensProvider
+from .data_const import Datasets
+
 import pytorch_lightning as L
 from tools.project import MODELS_PATH
 import torch
 import torch.nn.functional as F
 from torch.optim import Adam
-from data import ConceptDataModule, get_ds, TokensProvider
 
 from audiocraft.models import MusicGen
 import dataclasses
 import logging
 from toolz import concat
-from callbacks import ConceptEmbeds
-from data_const import Datasets
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 logger = logging.getLogger(__name__)
@@ -227,8 +227,8 @@ class TransformerTextualInversion(L.LightningModule):
         optimizer = Adam([self.model.text_weights], lr=self.cfg.lr)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=400, gamma=0.1)
         return {
-            'optimizer': optimizer,
-            'lr_scheduler': scheduler,
+            "optimizer": optimizer,
+            "lr_scheduler": scheduler,
         }
         # return (
         #     [optimizer],

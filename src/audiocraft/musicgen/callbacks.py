@@ -1,12 +1,9 @@
 import pytorch_lightning as L
 from pytorch_lightning.loggers import WandbLogger
-from tools.project import INPUT_PATH, LOGS_PATH, OUTPUT_PATH, MODELS_PATH
+from tools.project import INPUT_PATH, OUTPUT_PATH, MODELS_PATH
 import torch
-import contextlib
-import io
 import os
 import wandb
-import uuid
 
 import librosa
 import librosa.display
@@ -15,29 +12,22 @@ import matplotlib.pyplot as plt
 import json
 from audiocraft.data.audio import audio_write
 import dataclasses
-from pathlib import Path
-from data import Concept, TextConcepts
-from data_const import Datasets
+from .data import Concept, TextConcepts
+from .data_const import Datasets
 from fadtk.model_loader import CLAPLaionModel
 from fadtk.fad import FrechetAudioDistance, calc_frechet_distance
 from fadtk.utils import get_cache_embedding_path
 import logging
-from metrics import calc_fad, calc_clap
-from utils import suppress_all_output
+from .utils import suppress_all_output
 import shutil
 import random
-from toolz import partition_all, concat
+from toolz import partition_all
 import uuid
 import multiprocessing
 from concurrent.futures import ProcessPoolExecutor
 import tqdm
+
 logger = logging.getLogger(__name__)
-
-
-@dataclasses.dataclass
-class ConceptEmbeds:
-    epoch: int
-    embeds: torch.Tensor
 
 
 @dataclasses.dataclass
@@ -80,29 +70,40 @@ def audio_to_spectrogram_image(audio, sr):
     plt.close(fig)
     return spectrogram_image
 
+
 from pathlib import Path
+
+
 def cosine_similarity(a, b):
-        return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+    return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+
+
 def _calc_clap_score(fad, clap, concept: str, path: str, descriptions: dict[str, str]):
-        audio_embeds = fad.load_embeddings(path)
-        text_embeds = clap.model.get_text_embedding(descriptions[concept]).reshape(-1)
-        return np.mean(cosine_similarity(audio_embeds, text_embeds))
+    audio_embeds = fad.load_embeddings(path)
+    text_embeds = clap.model.get_text_embedding(descriptions[concept]).reshape(-1)
+    return np.mean(cosine_similarity(audio_embeds, text_embeds))
+
 
 @torch.no_grad()
-def offline_eval(fad, clap, base_dir: str, concepts: list[str], descriptions: dict[str, str]):
+def offline_eval(
+    fad, clap, base_dir: str, concepts: list[str], descriptions: dict[str, str]
+):
     res = {}
-    mu_bg, cov_bg = fad.load_stats('fma_pop')
+    mu_bg, cov_bg = fad.load_stats("fma_pop")
     for concept in concepts:
         gen_path = OUTPUT_PATH(base_dir, concept, "temp")
         ref_path = INPUT_PATH(base_dir, "data", "train", concept, "audio")
 
         def cache_path_emb(path: str):
             files = Path(path).glob("*.*")
-            files = [f for f in files if not get_cache_embedding_path(clap.name, f).exists()]
+            files = [
+                f for f in files if not get_cache_embedding_path(clap.name, f).exists()
+            ]
             if len(files) == 0:
                 return
             for f in files:
                 fad.cache_embedding_file(f)
+
         cache_path_emb(gen_path)
         cache_path_emb(ref_path)
         mu_gen, cov_gen = fad.load_stats(gen_path)
@@ -110,24 +111,30 @@ def offline_eval(fad, clap, base_dir: str, concepts: list[str], descriptions: di
         score = calc_frechet_distance(mu_ref, cov_ref, mu_gen, cov_gen)
         glob_score = calc_frechet_distance(mu_bg, cov_bg, mu_gen, cov_gen)
         clap_score = _calc_clap_score(fad, clap, concept, gen_path, descriptions)
-        res[concept] = {
-             'ds_fad': score,
-             'fad': glob_score,
-             'clap': clap_score
-        }
+        res[concept] = {"ds_fad": score, "fad": glob_score, "clap": clap_score}
         shutil.rmtree(os.path.join(gen_path, "embeddings"))
         shutil.rmtree(os.path.join(gen_path, "convert"))
         shutil.rmtree(os.path.join(gen_path, "stats"))
     return res
+
+
 import sys
+
+
 def _suppress_output():
     devnull = open(os.devnull, "w")
     sys.stdout = devnull
     sys.stderr = devnull
-def calc_eval(base_dir: str, concepts: list[str], descriptions: dict[str, str], workers=2):
+
+
+def calc_eval(
+    base_dir: str, concepts: list[str], descriptions: dict[str, str], workers=2
+):
     concepts_batches = list(partition_all(len(concepts) // workers, concepts))
-    multiprocessing.set_start_method('spawn', force=True)
-    with ProcessPoolExecutor(max_workers=workers, initializer=_suppress_output) as executor:
+    multiprocessing.set_start_method("spawn", force=True)
+    with ProcessPoolExecutor(
+        max_workers=workers, initializer=_suppress_output
+    ) as executor:
         results = list(
             executor.map(
                 offline_eval,
@@ -137,7 +144,7 @@ def calc_eval(base_dir: str, concepts: list[str], descriptions: dict[str, str], 
             )
         )
 
-    return {k:v for val in results for k,v in val.items()}
+    return {k: v for val in results for k, v in val.items()}
 
 
 class EMACallback(L.Callback):
@@ -211,8 +218,7 @@ class GenEvalCallback(L.Callback):
                 [
                     (
                         concept.name,
-                        self.cfg.prompt_template
-                        % tokens,
+                        self.cfg.prompt_template % tokens,
                     )
                     for _ in range(self.cfg.n_generations)
                 ]
@@ -246,8 +252,11 @@ class GenEvalCallback(L.Callback):
                 img_list.append(wandb.Image(spectrogram, caption=f"Spectrogram {ctn}"))
 
             concept_counter[concept_name] = ctn + 1
+
         old_duration = pl_module.model.model.duration
-        pl_module.model.model.set_generation_params(duration=self.cfg.generation_duration)
+        pl_module.model.model.set_generation_params(
+            duration=self.cfg.generation_duration
+        )
         for prompts_batch in tqdm.tqdm(prompts_batches):
             concepts, prompts = list(zip(*prompts_batch))
             with torch.no_grad():
@@ -270,14 +279,20 @@ class GenEvalCallback(L.Callback):
         pl_module.logger.experiment.log(plots)
         logger.info("Started evalation")
         with suppress_all_output():
-            eval_res = offline_eval(self.fad, self.clap, self.base_dir, self.cfg.concepts.concepts_names, self.concept_descriptions)
+            eval_res = offline_eval(
+                self.fad,
+                self.clap,
+                self.base_dir,
+                self.cfg.concepts.concepts_names,
+                self.concept_descriptions,
+            )
         for c_name, stats in eval_res.items():
-            pl_module.log(f"DS_FAD {c_name}", stats['ds_fad'])
-            pl_module.log(f"FAD {c_name}", stats['fad'])
-            pl_module.log(f"CLAP {c_name}", stats['clap'])
-            ds_fads.append(stats['ds_fad'])
-            fads.append(stats['fad'])
-            claps.append(stats['clap'])
+            pl_module.log(f"DS_FAD {c_name}", stats["ds_fad"])
+            pl_module.log(f"FAD {c_name}", stats["fad"])
+            pl_module.log(f"CLAP {c_name}", stats["clap"])
+            ds_fads.append(stats["ds_fad"])
+            fads.append(stats["fad"])
+            claps.append(stats["clap"])
 
         if len(fads) > 0:
             pl_module.log(f"fad_avg", np.mean(fads))
@@ -324,12 +339,12 @@ class SaveEmbeddingsCallback(L.Callback):
                 "epoch": trainer.current_epoch,
                 "embeds": self.weights[concept.token_ids].detach().cpu(),
             }
-        
+
         def append_concept(concept: Concept):
             key = str(trainer.current_epoch)
             epoch_concepts = self.all_embeds.get(key, {})
             epoch_concepts[concept.name] = {
-                'epoch': trainer.current_epoch,
+                "epoch": trainer.current_epoch,
                 "embeds": self.weights[concept.token_ids].detach().cpu(),
             }
             self.all_embeds[key] = epoch_concepts
@@ -350,15 +365,26 @@ class SaveEmbeddingsCallback(L.Callback):
         if len(valid_values) > 0:
             pl_module.log(f"fad_best_avg", np.mean(valid_values))
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     import timeit
-    with open(INPUT_PATH('concepts-dataset', "metadata_concepts.json"), "r") as fh:
+
+    with open(INPUT_PATH("concepts-dataset", "metadata_concepts.json"), "r") as fh:
         concept_descriptions = json.load(fh)
+
     def func1():
-        calc_eval('concepts-dataset', list(concept_descriptions.keys()), concept_descriptions, workers=4)
+        calc_eval(
+            "concepts-dataset",
+            list(concept_descriptions.keys()),
+            concept_descriptions,
+            workers=4,
+        )
+
     def func2():
-        offline_eval('concepts-dataset', list(concept_descriptions.keys()), concept_descriptions)
+        offline_eval(
+            "concepts-dataset", list(concept_descriptions.keys()), concept_descriptions
+        )
+
     time_1 = timeit.timeit(func1, number=1)
     time_2 = timeit.timeit(func2, number=1)
     print(time_1, time_2)
-    

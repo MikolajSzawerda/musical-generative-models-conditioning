@@ -4764,6 +4764,57 @@ files = [
 ]
 
 [[package]]
+name = "musicgen"
+version = "0.1.4"
+description = ""
+optional = false
+python-versions = ">=3.10,<3.11"
+files = []
+develop = false
+
+[package.dependencies]
+audiocraft = {path = "../meta_audiocraft"}
+audioldm-eval = {git = "https://github.com/haoheliu/audioldm_eval"}
+audiomentations = "^0.37.0"
+black = "^24.10.0"
+chromadb = "^0.5.18"
+clip = {git = "https://github.com/openai/CLIP.git"}
+datasets = "^3.0.1"
+fadtk = "^1.0.1"
+faiss-cpu = {version = "^1.7.2", markers = "sys_platform == \"darwin\""}
+faiss-gpu = {version = "^1.7.2", markers = "sys_platform == \"linux\""}
+huggingface-hub = {version = "^0.26.2", extras = ["cli"]}
+hydra-core = "^1.3.2"
+ipywidgets = "^8.1.5"
+jupyter = "^1.1.1"
+lightning = "^2.4.0"
+msclap = "^1.3.3"
+netron = "^8.0.3"
+notebook = "^7.2.2"
+numpy = "<2.0"
+openai = "^1.54.4"
+plotly = "^5.24.1"
+protobuf = "3.20.*"
+pytest = "^8.3.4"
+pytorch-lightning = "^2.4.0"
+pytorch-metric-learning = "^2.6.0"
+resampy = "^0.4.3"
+seaborn = "^0.13.2"
+sentence-transformers = "^3.3.0"
+tensorboard = "^2.18.0"
+tools = {path = "../tools"}
+toolz = "^1.0.0"
+torch = "2.1.0"
+torchviz = "^0.0.2"
+umap-learn = "^0.5.6"
+wandb = "^0.18.7"
+yt-dlp = {version = "^2024.11.18", extras = ["default"]}
+
+[package.source]
+type = "directory"
+url = "../audiocraft"
+
+[[package]]
 name = "mutagen"
 version = "1.47.0"
 description = "read and write audio tags for many formats"
@@ -9973,4 +10024,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.11"
-content-hash = "21fb0334298c2f0dfc4872ef9a1d282811ea678efa50479614b1760a452185b2"
+content-hash = "ee8fa5c0efc87e79f2ec433b235d534ffd55176aa1c3620949ce09f118b74237"

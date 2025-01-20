@@ -7,7 +7,7 @@ from random import choice
 from torch.utils.data import DataLoader, default_collate
 from torch.utils.data import DataLoader
 import pytorch_lightning as L
-from data_const import train_desc, val_desc, Datasets
+from .data_const import train_desc, val_desc, Datasets
 import dataclasses
 from audiocraft.modules.conditioners import T5Conditioner
 from audiocraft.models import MusicGen
@@ -62,15 +62,9 @@ class Concept:
 
     def pseudoword(self):
         return " ".join(self.tokens)
-    
+
     def __str__(self):
         return self.name
-
-
-@dataclasses.dataclass
-class ConceptEmbeds:
-    epoch: int
-    embeds: torch.Tensor
 
 
 class TextConcepts:
@@ -80,7 +74,7 @@ class TextConcepts:
     @property
     def concepts(self) -> dict[str, Concept]:
         return self.db
-    
+
     @property
     def concepts_names(self) -> list[str]:
         return [c.name for c in self.db.values()]
@@ -139,7 +133,7 @@ class ConceptDataset(torch.utils.data.Dataset):
         music_len: int = 100,
         pad_value: int = 0,
         preload_ds=True,
-        randomize_tokens=True
+        randomize_tokens=True,
     ):
         self.ds = ds
         self.base_dir: str = INPUT_PATH(base_dir.value)
@@ -193,7 +187,9 @@ class ConceptDataset(torch.utils.data.Dataset):
         row = self.ds[idx]
         concept = row["concept"]
         if self.randomize_tokens:
-            random_tokens = random.sample(self.concepts_db[concept].tokens, len(self.concepts_db[concept].tokens))
+            random_tokens = random.sample(
+                self.concepts_db[concept].tokens, len(self.concepts_db[concept].tokens)
+            )
             prompt = self.prompter.get(" ".join(random_tokens))
         else:
             prompt = self.prompter.get(self.concepts_db[concept].pseudoword())
@@ -223,7 +219,7 @@ class ConceptDataModule(L.LightningDataModule):
         music_len: int = 255,
         batch_size: int = 5,
         with_valid: bool = True,
-        randomize_tokens = True
+        randomize_tokens=True,
     ):
         super().__init__()
         self.music_len = music_len
@@ -254,7 +250,7 @@ class ConceptDataModule(L.LightningDataModule):
             self.concepts_db,
             self.base_dir,
             self.music_len,
-            randomize_tokens=self.randomize_tokens
+            randomize_tokens=self.randomize_tokens,
         )
         if self.with_valid:
             self._val_ds = ConceptDataset(
@@ -263,7 +259,7 @@ class ConceptDataModule(L.LightningDataModule):
                 self.concepts_db,
                 self.base_dir,
                 self.music_len,
-                randomize_tokens=self.randomize_tokens
+                randomize_tokens=self.randomize_tokens,
             )
 
     def train_dataloader(self) -> DataLoader:
@@ -307,3 +303,9 @@ if __name__ == "__main__":
     cds.setup("train")
     print(next(iter(cds.train_dataloader())))
     print(next(iter(cds.val_dataloader())))
+
+
+@dataclasses.dataclass
+class ConceptEmbeds:
+    epoch: int
+    embeds: torch.Tensor
