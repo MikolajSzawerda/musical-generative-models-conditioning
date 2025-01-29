@@ -3,21 +3,21 @@ from pytorch_lightning.loggers import WandbLogger
 from tools.project import LOGS_PATH
 import torch
 import wandb
-from data import ConceptDataModule, get_ds
+from musicgen.data import ConceptDataModule, get_ds, resample_ds
 from argparse import ArgumentParser
 import yaml
 from audiocraft.models import MusicGen
 from fadtk.model_loader import CLAPLaionModel
 from fadtk.fad import FrechetAudioDistance
 import logging
-from data_const import Datasets
+from musicgen.data_const import Datasets
 from model import ModelConfig, TransformerTextualInversion
 from callbacks import (
     EmbedingsSaveCallbackConfig,
     EvaluationCallbackConfig,
     SaveEmbeddingsCallback,
     GenEvalCallback,
-    EMACallback
+    EMACallback,
 )
 from utils import suppress_all_output
 
@@ -30,24 +30,6 @@ WANDB_PROJECT = "textual-inversion-lr"
 SEED = 42
 
 EXP_DATASET = Datasets.TEXTUAL_INVERSION_V3
-
-def resample_ds(ds, max_examples_num: int):
-    def resample_split(split: str):
-        by_concept_count ={}
-        idxs = []
-        concepts = ds[split]["concept"]
-        for i, c in enumerate(concepts):
-            ctn = by_concept_count.get(c, 0)
-            if ctn > max_examples_num:
-                continue
-            by_concept_count[c] = ctn + 1
-            idxs.append(i)
-        res_ds = ds[split].select(idxs)
-        print(split, res_ds.to_pandas().groupby("concept").size())
-        return res_ds
-    ds['train'] = resample_split('train')
-    ds['valid'] = resample_split('valid')
-    return ds
 
 
 def run_exp(cfg: ModelConfig, wandb_logger):
@@ -68,12 +50,11 @@ def run_exp(cfg: ModelConfig, wandb_logger):
         base_dir=EXP_DATASET,
         music_len=249,
         batch_size=cfg.batch_size,
-        randomize_tokens = cfg.randomize_tokens
+        randomize_tokens=cfg.randomize_tokens,
     )
     with suppress_all_output():
-        clap = CLAPLaionModel('music')
+        clap = CLAPLaionModel("music")
         fad = FrechetAudioDistance(clap)
-
 
     quick_save_cl = SaveEmbeddingsCallback(
         EXP_DATASET,
@@ -89,9 +70,7 @@ def run_exp(cfg: ModelConfig, wandb_logger):
         clap,
         EXP_DATASET,
         EvaluationCallbackConfig(
-            model.model.db,
-            cfg.tokens_num,
-            randomize_tokens=cfg.randomize_tokens
+            model.model.db, cfg.tokens_num, randomize_tokens=cfg.randomize_tokens
         ),
     )
     trainer = L.Trainer(
@@ -168,8 +147,12 @@ if __name__ == "__main__":
         parser.add_argument("--cfg-coef", type=float, default=3.0)
         parser.add_argument("--lr", type=float, default=1e-1)
         parser.add_argument("--model-name", type=str, default="small")
-        parser.add_argument("--randomize-tokens", dest='randomize_tokens', action='store_true')
-        parser.add_argument("--no-randomize-tokens", dest='randomize_tokens', action='store_false')
+        parser.add_argument(
+            "--randomize-tokens", dest="randomize_tokens", action="store_true"
+        )
+        parser.add_argument(
+            "--no-randomize-tokens", dest="randomize_tokens", action="store_false"
+        )
         # parser.add_argument("--previous-run", type=str, default="")
         parser.add_argument("--concepts", nargs="+", default=["8bit"])
         run_args_exp(parser.parse_args())

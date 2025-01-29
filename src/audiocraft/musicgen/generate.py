@@ -16,6 +16,7 @@ import json
 import pytorch_lightning as L
 
 import shutil
+
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 PROMPT = "In the style of %s"
 DATASET = "concepts-dataset"
@@ -45,9 +46,9 @@ def gen_ti(
     num=10,
     ds_name=DATASET,
     out_dir="musicgen-ti-generated",
-    prompt_type='description',
+    prompt_type="description",
     use_all=False,
-    from_epoch="0"
+    from_epoch="0",
 ):
     """
     Generates music clips for specified concepts using a pre-trained MusicGen model
@@ -111,12 +112,14 @@ def gen_ti(
         if os.path.exists(OUTPUT_PATH(out_dir, concept)):
             shutil.rmtree(OUTPUT_PATH(out_dir, concept))
             os.makedirs(OUTPUT_PATH(out_dir, concept), exist_ok=True)
-        if prompt_type == 'description':
-            prompt = f'{DESCRIPTIONS[concept]} {PROMPT % tokens_provider.get_str(concept)}'
-        elif prompt_type == 'inversion':
-            prompt = f'{PROMPT % tokens_provider.get_str(concept)}'
+        if prompt_type == "description":
+            prompt = (
+                f"{DESCRIPTIONS[concept]} {PROMPT % tokens_provider.get_str(concept)}"
+            )
+        elif prompt_type == "inversion":
+            prompt = f"{PROMPT % tokens_provider.get_str(concept)}"
         else:
-            prompt = f'{DESCRIPTIONS[concept]}'
+            prompt = f"{DESCRIPTIONS[concept]}"
         print(f"Running generation for: {prompt}")
         # prompts = []
         # for c, desc in DESCRIPTIONS.items():
@@ -205,7 +208,7 @@ if __name__ == "__main__":
     L.seed_everything(42, workers=True)
     args = parser.parse_args()
     if args.model == "ti":
-        with open(INPUT_PATH(args.ds_name, 'metadata_concepts.json'), 'r') as fh:
+        with open(INPUT_PATH(args.ds_name, "metadata_concepts.json"), "r") as fh:
             DESCRIPTIONS = json.load(fh)
         gen_ti(
             args.run_name,
@@ -217,7 +220,7 @@ if __name__ == "__main__":
             args.out_dir,
             args.prompt_type,
             args.use_all,
-            args.from_epoch
+            args.from_epoch,
         )
     elif args.model == "style":
         gen_style(args.concepts, args.duration, args.num, args.ds_name)

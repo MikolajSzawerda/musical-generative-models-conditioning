@@ -1,8 +1,8 @@
 [tool.poetry]
 name = "musicgen"
-version = "0.1.4"
+version = "0.1.9"
 description = ""
-authors = ["mikolaj.szawerda@gmail.com"]
+authors = ["Mikolaj Szawerda <mikolaj.szawerda@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]

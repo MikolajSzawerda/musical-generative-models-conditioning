@@ -6,6 +6,7 @@ from tools.project import INPUT_PATH, LOGS_PATH, OUTPUT_PATH, MODELS_PATH
 from toolz import partition_all, concat
 import os
 import torch
+
 # from audioldm_eval.metrics.fad import FrechetAudioDistance
 from argparse import ArgumentParser
 import json
@@ -17,11 +18,12 @@ from fadtk.model_loader import CLAPLaionModel
 from fadtk.fad import FrechetAudioDistance
 from fadtk.utils import get_cache_embedding_path
 from pathlib import Path
+
 DATASET = "concepts-dataset"
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 clap_model = CLAP(version="2023", use_cuda=torch.cuda.is_available())
-model = CLAPLaionModel('music')
+model = CLAPLaionModel("music")
 fad = FrechetAudioDistance(model)
 # fad_model = FrechetAudioDistance(verbose=False, use_pca=True, use_activation=True)
 
@@ -52,7 +54,9 @@ def get_dir_embeds(dir_path: str, recalc=True):
     cache_path = os.path.join(os.path.dirname(dir_path), f"clap_feature_{dir_name}.pt")
     if os.path.exists(cache_path) and not recalc:
         return torch.load(cache_path)
-    files = [f for f in os.listdir(dir_path) if not os.path.isdir(os.path.join(dir_path, f))]
+    files = [
+        f for f in os.listdir(dir_path) if not os.path.isdir(os.path.join(dir_path, f))
+    ]
     batches = partition_all(20, files)
     res = []
 
@@ -208,7 +212,6 @@ def load_descriptions():
         return json.load(fh)
 
 
-
 def clap_fad(ref_path, eval_path):
     """
     Calculates the Fréchet Audio Distance (FAD) score between reference and evaluation datasets.
@@ -224,17 +227,20 @@ def clap_fad(ref_path, eval_path):
     :return: The computed Fréchet Audio Distance score.
     :rtype: float
     """
+
     def cache_path(path):
-        if os.path.exists(os.path.join(path, 'embeddings', model.name)):
+        if os.path.exists(os.path.join(path, "embeddings", model.name)):
             return
-        
+
         for f in Path(path).glob("*.*"):
             if os.path.isdir(f):
                 continue
             fad.cache_embedding_file(f)
+
     cache_path(ref_path)
     cache_path(eval_path)
     return fad.score(ref_path, eval_path)
+
 
 if __name__ == "__main__":
     args = parser.parse_args()

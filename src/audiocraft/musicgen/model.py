@@ -1,10 +1,9 @@
-from .data import TextConcepts, Concept, ConceptEmbeds
-from .losses import compute_cross_entropy, compute_ortho_loss
-from .data import ConceptDataModule, get_ds, TokensProvider
-from .data_const import Datasets
+from musicgen.data import TextConcepts, Concept, ConceptEmbeds
+from musicgen.losses import compute_cross_entropy, compute_ortho_loss
+from musicgen.data import ConceptDataModule, TokensProvider
+from musicgen.data_const import Datasets
 
 import pytorch_lightning as L
-from tools.project import MODELS_PATH
 import torch
 import torch.nn.functional as F
 from torch.optim import Adam
@@ -37,31 +36,6 @@ class ModelConfig:
 
 
 class TIMusicGen:
-    """
-    A class for handling music generation tasks using the MusicGen model. This class
-    provides methods to initialize model weights either randomly or based on specific
-    embeddings, enable or disable gradients for model parameters, and manages crucial
-    components like the tokenizer, text model, and configuration.
-
-    :ivar model: The MusicGen model instance responsible for music generation.
-    :type model: MusicGen
-    :ivar text_conditioner: The text conditioner obtained from the model's condition
-        provider, used for processing input text conditions.
-    :type text_conditioner: object
-    :ivar tokenizer: The tokenizer associated with the text conditioner, used to
-        tokenize inputs.
-    :type tokenizer: object
-    :ivar text_model: The text model associated with the conditioner, handling encoded
-        text data.
-    :type text_model: object
-    :ivar text_weights: The shared weight matrix of the text model for managing embeddings.
-    :type text_weights: torch.Tensor
-    :ivar db: A reference to the database of text concepts, responsible for storing
-        and retrieving token and concept data.
-    :type db: TextConcepts
-    :ivar cfg: Configuration details for the current music generation model.
-    :type cfg: ModelConfig
-    """
 
     def __init__(self, model: MusicGen, concepts_db: TextConcepts, cfg: ModelConfig):
         self.model = model
@@ -107,24 +81,6 @@ class TIMusicGen:
 
 
 class TransformerTextualInversion(L.LightningModule):
-    """
-    Handles enhanced training for textual inversion of a Transformer-based music generation
-    model. This class is derived from PyTorch Lightning's LightningModule and is specifically
-    designed to fine-tune embeddings and handle textual conditioning for improved music
-    generation from prompts.
-
-    The class provides methods for initializing models, computing losses with various
-    constraints, and dynamically adjusting embeddings during training.
-
-    :ivar cfg: The configuration object containing parameters for training and model
-        customization.
-    :type cfg: ModelConfig
-    :ivar model: Instance of the TIMusicGen model that is being trained and fine-tuned.
-    :type model: TIMusicGen
-    :ivar old_weights: Stores the previous weights of the model's parameters, used for
-        comparison or restoring older states if necessary.
-    :type old_weights: Optional
-    """
 
     def __init__(
         self,
@@ -146,18 +102,12 @@ class TransformerTextualInversion(L.LightningModule):
     @classmethod
     def from_previous_run(
         cls,
-        base_dir: str,
-        run_name: str,
+        previous_run_embeds: dict[str, ConceptEmbeds],
         music_model: MusicGen,
         cfg: ModelConfig,
     ):
         ti_model = TransformerTextualInversion.get_ti_model(music_model, cfg)
-        raw_embeds = torch.load(MODELS_PATH(base_dir, f"{run_name}-best.pt"))
-        embeds = {
-            c: ConceptEmbeds(data["epoch"], data["embeds"])
-            for c, data in raw_embeds.items()
-        }
-        ti_model.init_model(embeds)
+        ti_model.init_model(previous_run_embeds)
         return cls(ti_model, cfg)
 
     @classmethod
@@ -293,6 +243,9 @@ def append_new_tokens(tokenizer, tokens_by_concept):
 
 
 if __name__ == "__main__":
+    from musicgen.data import get_ds
+    from tools.project import MODELS_PATH, INPUT_PATH
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -304,7 +257,7 @@ if __name__ == "__main__":
     music_model.set_generation_params(
         use_sampling=True, top_k=250, duration=cfg.examples_len
     )
-    ds = get_ds(Datasets.TEXTUAL_INVERSION_V3).filter(
+    ds = get_ds(Datasets.TEXTUAL_INVERSION_V3, INPUT_PATH).filter(
         lambda x: x["concept"] == "cluster_0"
     )
 

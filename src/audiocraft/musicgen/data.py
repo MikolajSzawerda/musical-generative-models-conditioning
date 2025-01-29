@@ -1,4 +1,3 @@
-from tools.project import INPUT_PATH
 import torch
 import os
 from datasets import Dataset, DatasetDict
@@ -7,7 +6,7 @@ from random import choice
 from torch.utils.data import DataLoader, default_collate
 from torch.utils.data import DataLoader
 import pytorch_lightning as L
-from .data_const import train_desc, val_desc, Datasets
+from musicgen.data_const import train_desc, val_desc, Datasets
 import dataclasses
 from audiocraft.modules.conditioners import T5Conditioner
 from audiocraft.models import MusicGen
@@ -21,18 +20,44 @@ NUM_WORKERS = int(os.cpu_count() * 0.75)
 logger = logging.getLogger(__name__)
 
 
-def get_ds(dataset: Datasets) -> DatasetDict:
+def get_ds(dataset: Datasets, base_dir) -> DatasetDict:
     return load_dataset(
         "json",
         data_files={
-            "valid": INPUT_PATH(dataset.value, "metadata_val.json"),
-            "train": INPUT_PATH(dataset.value, "metadata_train.json"),
+            "valid": base_dir(dataset.value, "metadata_val.json"),
+            "train": base_dir(dataset.value, "metadata_train.json"),
         },
     )
 
 
+def resample_ds(ds, max_examples_num: int):
+    def resample_split(split: str):
+        by_concept_count = {}
+        idxs = []
+        concepts = ds[split]["concept"]
+        for i, c in enumerate(concepts):
+            ctn = by_concept_count.get(c, 0)
+            if ctn > max_examples_num:
+                continue
+            by_concept_count[c] = ctn + 1
+            idxs.append(i)
+        res_ds = ds[split].select(idxs)
+        print(split, res_ds.to_pandas().groupby("concept").size())
+        return res_ds
+
+    ds["train"] = resample_split("train")
+    ds["valid"] = resample_split("valid")
+    return ds
+
+
 def get_hg_ds():
     return load_dataset("mszawerd/concept-dataset")
+
+
+@dataclasses.dataclass
+class ConceptEmbeds:
+    epoch: int
+    embeds: torch.Tensor
 
 
 class TokensProvider:
@@ -81,6 +106,7 @@ class TextConcepts:
     :ivar db: A dictionary mapping concept names to their respective Concept objects.
     :type db: dict[str, Concept]
     """
+
     def __init__(self, concepts: list[Concept]):
         self.db: dict[str, Concept] = {c.name: c for c in concepts}
 
@@ -153,19 +179,32 @@ class ConceptDataset(torch.utils.data.Dataset):
     :ivar split: The data split, indicating 'train', 'valid', or other custom splits.
     :type split: str
     :ivar concepts_db: TextConcepts database for managing and retrieving concept"""
+
     def __init__(
         self,
         ds: Dataset,
         split: str,
         concepts_db: TextConcepts,
-        base_dir: Datasets,
+        base_dir: Datasets = None,
         music_len: int = 100,
         pad_value: int = 0,
         preload_ds=True,
         randomize_tokens=True,
     ):
         self.ds = ds
-        self.base_dir: str = INPUT_PATH(base_dir.value)
+
+        def from_ds():
+            from tools.project import INPUT_PATH
+
+            return INPUT_PATH(base_dir.value)
+
+        if base_dir is None:
+            try:
+                self.base_dir = os.path.dirname(list(ds.download_checksums.keys())[0])
+            except Exception:
+                self.base_dir: str = from_ds()
+        else:
+            self.base_dir = from_ds()
 
         self.concepts_db = concepts_db
         self.prompter = PromptProvider(val_desc if split == "valid" else train_desc)
@@ -267,11 +306,12 @@ class ConceptDataModule(L.LightningDataModule):
         dataset preparation.
     :type randomize_tokens: bool
     """
+
     def __init__(
         self,
         ds: DatasetDict,
         concepts_db: TextConcepts,
-        base_dir: Datasets,
+        base_dir: Datasets = None,
         music_len: int = 255,
         batch_size: int = 5,
         with_valid: bool = True,
@@ -290,10 +330,10 @@ class ConceptDataModule(L.LightningDataModule):
     def from_init(
         cls,
         concepts: list[str],
-        files_base_dir: Datasets,
         ds: DatasetDict,
         text_conditioner: T5Conditioner,
         tokens_provider: TokensProvider,
+        files_base_dir: Datasets = None,
         **kwargs,
     ):
         db = TextConcepts.from_init(text_conditioner, tokens_provider, concepts)
@@ -341,27 +381,23 @@ class ConceptDataModule(L.LightningDataModule):
 
 
 if __name__ == "__main__":
+    from tools.project import INPUT_PATH
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
-    ds = get_ds(Datasets.TEXTUAL_INVERSION_V3).filter(
+    ds = get_ds(Datasets.TEXTUAL_INVERSION_V3, INPUT_PATH).filter(
         lambda x: x["concept"] == "cluster_0"
     )
     conditioner = T5Conditioner("t5-small", 512, False, "cpu")
     cds = ConceptDataModule.from_init(
         ["cluster_0"],
-        Datasets.TEXTUAL_INVERSION_V3,
         ds,
         conditioner,
         TokensProvider(10),
+        Datasets.TEXTUAL_INVERSION_V3,
     )
     cds.setup("train")
     print(next(iter(cds.train_dataloader())))
     print(next(iter(cds.val_dataloader())))
-
-
-@dataclasses.dataclass
-class ConceptEmbeds:
-    epoch: int
-    embeds: torch.Tensor
