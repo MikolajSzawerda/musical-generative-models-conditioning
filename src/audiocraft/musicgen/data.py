@@ -68,6 +68,19 @@ class Concept:
 
 
 class TextConcepts:
+    """
+    Represents a collection of text-based concepts and provides methods for interacting
+    with and manipulating these concepts. Each concept has a name, associated tokens,
+    and other attributes, which are handled internally for efficient processing.
+
+    This class offers functionalities such as retrieving concept details, accessing all
+    concept names, collecting token IDs across all concepts, and executing custom
+    functions on each concept. It also includes class methods for constructing the
+    class based on specific initialization strategies.
+
+    :ivar db: A dictionary mapping concept names to their respective Concept objects.
+    :type db: dict[str, Concept]
+    """
     def __init__(self, concepts: list[Concept]):
         self.db: dict[str, Concept] = {c.name: c for c in concepts}
 
@@ -124,6 +137,22 @@ class TextConcepts:
 
 
 class ConceptDataset(torch.utils.data.Dataset):
+    """
+    Handles the representation and management of a dataset containing music embeddings
+    and their associated concepts, enabling data sampling and preprocessing functionalities.
+
+    The `ConceptDataset` class is designed to handle pre-processing of encoded music
+    embeddings from a provided dataset of rows and generate prompts related to specific
+    concept tokens. It allows for random sampling of a subsection of the encoded music
+    based on a configurable length and padding if necessary. Preloading of audio embeddings
+    is supported for efficient loading during runtime. The dataset is intended to assist
+    in tasks requiring joint representation of music and textual or conceptual data.
+
+    :ivar ds: The dataset containing music-related rows.
+    :type ds: Dataset
+    :ivar split: The data split, indicating 'train', 'valid', or other custom splits.
+    :type split: str
+    :ivar concepts_db: TextConcepts database for managing and retrieving concept"""
     def __init__(
         self,
         ds: Dataset,
@@ -211,6 +240,33 @@ def collate_fn(batch):
 
 
 class ConceptDataModule(L.LightningDataModule):
+    """
+    Handles data loading and preparation for a neural network training pipeline.
+    This module divides the dataset into train and validation sets, applies necessary
+    preprocessing steps, and creates data loaders for training and validation phases.
+
+    ConceptDataModule is tailored to handle datasets with specific text concepts and
+    associated metadata. It ensures flexibility in how datasets are prepared and how
+    tokens are randomized.
+
+    :ivar music_len: The maximum length of the music representation for each data
+        instance.
+    :type music_len: int
+    :ivar batch_size: Number of data samples to include in each batch.
+    :type batch_size: int
+    :ivar ds: A dictionary-based dataset split into train and optionally validation sets.
+    :type ds: DatasetDict
+    :ivar concepts_db: An instance of TextConcepts, containing database of text-related
+        concepts for conditioning data.
+    :type concepts_db: TextConcepts
+    :ivar base_dir: The base directory containing datasets used during training.
+    :type base_dir: Datasets
+    :ivar with_valid: Whether or not to include a validation dataset.
+    :type with_valid: bool
+    :ivar randomize_tokens: Flag indicating whether tokens should be randomized during
+        dataset preparation.
+    :type randomize_tokens: bool
+    """
     def __init__(
         self,
         ds: DatasetDict,

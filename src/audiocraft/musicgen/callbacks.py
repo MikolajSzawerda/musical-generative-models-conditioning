@@ -32,6 +32,39 @@ logger = logging.getLogger(__name__)
 
 @dataclasses.dataclass
 class EvaluationCallbackConfig:
+    """
+    Configuration class for evaluation callbacks.
+
+    Defines the parameters and settings required to configure evaluation callbacks,
+    including concepts, token numbers, epochs, and various generation parameters.
+    This class serves as a data container providing an organized structure for
+    evaluation-related configurations in the application.
+
+    :ivar concepts: Concepts for the evaluation process.
+    :type concepts: TextConcepts
+    :ivar tokens_num: Number of tokens to be considered for the evaluation.
+    :type tokens_num: int
+    :ivar n_epochs: Number of epochs for the evaluation. Defaults to 10.
+    :type n_epochs: int
+    :ivar n_generations: Number of generations for evaluation. Defaults to 10.
+    :type n_generations: int
+    :ivar prompt_template: Template for prompts provided during the evaluation.
+        Default template is "In the style of %s".
+    :type prompt_template: str
+    :ivar calc_spectrogram: Boolean indicating whether to calculate spectrograms.
+        Defaults to False.
+    :type calc_spectrogram: bool
+    :ivar generation_batch: Batch size for content generation.
+        Defaults to 50.
+    :type generation_batch: int
+    :ivar generation_duration: Duration for each generation batch in seconds.
+        Defaults to 5.
+    :type generation_duration: int
+    :ivar randomize_tokens: Boolean flag indicating whether to randomize tokens
+        during evaluation. Defaults to True.
+    :type randomize_tokens: bool
+    """
+
     concepts: TextConcepts
     tokens_num: int
     n_epochs: int = 10
@@ -50,6 +83,21 @@ class EmbedingsSaveCallbackConfig:
 
 
 def audio_to_spectrogram_image(audio, sr):
+    """
+    Convert an audio signal into a mel-spectrogram and represent it as an image. This function
+    generates a mel-spectrogram from the input audio signal, visualizes it using a matplotlib
+    plot, and then exports the visualization as a numpy array image. The resulting image can
+    be used for various purposes, such as training machine learning models or analyzing audio
+    data visually.
+
+    :param audio: The input audio signal as a numpy array. If it is multi-dimensional, the
+        function will squeeze it into a 1D array.
+    :type audio: numpy.ndarray
+    :param sr: The sampling rate of the audio signal.
+    :type sr: int
+    :return: A numpy array representing the mel-spectrogram image of the audio signal.
+    :rtype: numpy.ndarray
+    """
     if audio.ndim > 1:
         audio = np.squeeze(audio, axis=0)
     S = librosa.feature.melspectrogram(y=audio, sr=sr, n_mels=128, fmax=sr / 2)
@@ -88,6 +136,30 @@ def _calc_clap_score(fad, clap, concept: str, path: str, descriptions: dict[str,
 def offline_eval(
     fad, clap, base_dir: str, concepts: list[str], descriptions: dict[str, str]
 ):
+    """
+    Evaluate the performance of the audio generation pipeline using various metrics such
+    as Frechet Audio Distance (FAD) and Contrastive Language-Audio Pretraining (CLAP) score.
+
+    This function evaluates the generated audio files against reference audio files. It
+    makes use of precomputed background statistics and calculates performance metrics for
+    each specified concept in the dataset. The function also caches audio embeddings for
+    later evaluations and cleans temporary files after the process is complete.
+
+    :param fad: Instance of a class that provides methods for loading and caching audio
+        embeddings, as well as for loading precomputed statistics. Used for calculating
+        FAD scores.
+    :param clap: Instance of a class that provides methods needed for contrastive language-
+        audio scoring (CLAP). Used to compute the CLAP score for generated audio files.
+    :param base_dir: Base directory containing input and output data. This serves as
+        the root directory for paths to generated and reference audio files.
+    :param concepts: List of concept names (strings) to evaluate. Each concept corresponds
+        to a specific category or subset of audio data for evaluation.
+    :param descriptions: Dictionary where keys are concept names and values are their
+        respective textual descriptions. Used during the computation of CLAP scores.
+    :return: A dictionary where each key represents a concept name, and the corresponding
+        value is another dictionary. That dictionary contains the metrics: Frechet Audio
+        Distance (FAD) score, global FAD score, and the CLAP score.
+    """
     res = {}
     mu_bg, cov_bg = fad.load_stats("fma_pop")
     for concept in concepts:
@@ -185,6 +257,30 @@ class EMACallback(L.Callback):
 
 
 class GenEvalCallback(L.Callback):
+    """
+    Provides functionality for evaluating generative models through metrics like FAD (Frechet Audio
+    Distance), CLAP, and spectrogram visualizations by using a configurable callback. Executes
+    evaluations periodically during training, based on the number of epochs and configuration settings.
+
+    This class manages the evaluation process by generating prompts from predefined concepts,
+    producing corresponding audio samples, computing evaluation metrics, and logging the
+    results. It supports operations such as randomized token generation for prompts, audio and
+    spectrogram generation, and offline evaluation with metrics like FAD and CLAP.
+
+    :ivar cfg: Configuration for evaluation callback, including parameters like number of
+        generations, epoch interval, and data structure details.
+    :type cfg: EvaluationCallbackConfig
+    :ivar fad: An instance of FrechetAudioDistance for calculating FAD metrics.
+    :type fad: FrechetAudioDistance
+    :ivar clap: An instance of CLAPLaionModel used for calculating CLAP scores.
+    :type clap: CLAPLaionModel
+    :ivar base_dir: Root directory containing dataset files and metadata for evaluation.
+    :type base_dir: str
+    :ivar concept_descriptions: A mapping of concepts to their descriptive metadata loaded
+        from a JSON file.
+    :type concept_descriptions: dict
+    """
+
     def __init__(
         self,
         fad: FrechetAudioDistance,
@@ -304,6 +400,34 @@ class GenEvalCallback(L.Callback):
 
 
 class SaveEmbeddingsCallback(L.Callback):
+    """
+    SaveEmbeddingsCallback class.
+
+    This class is a callback designed to save embeddings during the training process.
+    It tracks the best embeddings associated with specific concepts based on evaluation
+    metrics and stores them. The class enables logging and saving of embeddings in a
+    systematic manner to aid in model training and analysis.
+
+    It is intended to work with concepts configured in an external configuration object.
+    Embeddings are updated and logged at the end of specific validation epochs based on
+    performance improvements.
+
+    :ivar base_dir: Base directory where embeddings files will be stored.
+    :type base_dir: str
+    :ivar cfg: Configuration object containing settings and concept information for saving embeddings.
+    :type cfg: EmbedingsSaveCallbackConfig
+    :ivar best_score: Dictionary maintaining the best evaluation scores for each concept seen during training.
+    :type best_score: dict
+    :ivar best_file_path: Path to the file saving the best embeddings.
+    :type best_file_path: str or None
+    :ivar weights: Tensor holding embedding information for all concepts.
+    :type weights: torch.Tensor
+    :ivar best_embeds: Dictionary maintaining the best embeddings for each concept.
+    :type best_embeds: dict
+    :ivar all_embeds: Dictionary maintaining all saved embeddings for every tracked epoch.
+    :type all_embeds: dict
+    """
+
     def __init__(
         self,
         base_dir: Datasets,

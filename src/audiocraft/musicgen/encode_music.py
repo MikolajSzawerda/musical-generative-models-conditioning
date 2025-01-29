@@ -30,6 +30,17 @@ DATASET = "eval-ds"
 
 
 def remove_current(concept, split):
+    """
+    Removes entries with a specified concept from a dataset file corresponding to
+    the given split. The appropriate dataset file is identified based on the split
+    name and is then updated to exclude entries that match the given concept.
+
+    :param concept: The concept to be removed from the dataset.
+            This value is compared against the "concept" field in the dataset entries.
+    :param split: The dataset split ("train" or "val") to update. Determines
+            which dataset file to modify based on the split identifier.
+    :return: None
+    """
     name = "metadata_train.json" if split == "train" else "metadata_val.json"
     with open(INPUT_PATH(DATASET, name), "r") as fh:
         data = json.load(fh)
@@ -39,6 +50,20 @@ def remove_current(concept, split):
 
 
 def extend_current(data, split):
+    """
+    Extends the existing metadata file with additional data for a given dataset split.
+
+    This function reads the metadata corresponding to the specified split, appends
+    the provided data to it, and writes the updated metadata back to the file.
+
+    :param data: List of additional items to extend the metadata.
+            These will be appended to the existing metadata content.
+    :type data: list
+    :param split: Specifies the dataset split to update,
+            such as "train" or "val".
+    :type split: str
+    :return: None
+    """
     name = "metadata_train.json" if split == "train" else "metadata_val.json"
     with open(INPUT_PATH(DATASET, name), "r") as fh:
         fdata = json.load(fh)
@@ -48,12 +73,38 @@ def extend_current(data, split):
 
 
 def clean_directory(directory):
+    """
+    Removes a specified directory if it exists and recreates it as an empty directory.
+
+    This function ensures that the given directory is reset to a clean state by
+    removing all its contents and then creating it again.
+
+    :param directory: The directory path to clean and recreate.
+    :type directory: pathlib.Path
+    :return: None
+    """
     if directory.exists():
         shutil.rmtree(directory)
     directory.mkdir(parents=True, exist_ok=True)
 
 
 def encode(concept: str, split: str):
+    """
+    Encodes audio files for a specific concept and split by converting and saving them
+    in an encoded format suitable for the compression model.
+
+    Removes pre-existing encoded audio data for the concept and split, cleans the directory,
+    reads the audio files, processes them to prepare for encoding, encodes them using a
+    pre-trained compression model, and saves the results in the encoded folder. The encoded
+    files are stored as PyTorch tensors, and their metadata is added to a tracking data structure.
+
+    :param concept:
+        The name of the concept for which the audio files are to be encoded.
+    :param split:
+        The dataset split to be processed, such as "train" or "test".
+    :return:
+        None
+    """
     remove_current(concept, split)
     # concept, split= args.concept, args.split
     base_path = INPUT_PATH(DATASET, "data", split, concept)
@@ -93,9 +144,21 @@ import shutil
 
 def copy_random_audio_files(parent_directory, num_files=20):
     """
-    For each subfolder in 'parent_directory':
-      - Create a 'fad' subdirectory (if not already created).
-      - Randomly copy 'num_files' files from the 'audio' subdirectory into 'fad'.
+    This function copies a specified number of random audio files from each
+    subfolder's "audio" directory into a newly-created "fad" directory within the
+    same subfolder. The function checks all subfolders inside the given parent
+    directory, ensures the existence of necessary directories, and copies the
+    files if available. The total number of files copied is limited by the
+    number of files available and the specified limit.
+
+    :param parent_directory: The root directory containing subdirectories to process.
+        It must contain subfolders where "audio" directories are expected.
+    :type parent_directory: str
+    :param num_files: The maximum number of audio files to copy from each
+        subfolder's "audio" directory. If fewer files are available, all files
+        will be copied. Defaults to 20.
+    :type num_files: int
+    :return: None
     """
     for item in os.listdir(parent_directory):
         subfolder_path = os.path.join(parent_directory, item)

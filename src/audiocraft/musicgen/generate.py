@@ -49,6 +49,39 @@ def gen_ti(
     use_all=False,
     from_epoch="0"
 ):
+    """
+    Generates music clips for specified concepts using a pre-trained MusicGen model
+    and text embeddings. This function supports multiple customization options such as
+    generation duration, prompt type, batch size, and the ability to use embeddings
+    from a specific epoch or all available embeddings.
+
+    :param run_name: The name of the run used to identify saved embeddings.
+    :type run_name: str
+    :param concepts: List of concepts for which the music will be generated.
+    :type concepts: list[str]
+    :param model_name: The name of the pre-trained MusicGen model. Typically describes
+        the model architecture or version.
+    :type model_name: str
+    :param duration: Duration of the generated music in seconds. Default is 5 seconds.
+    :type duration: int, optional
+    :param num: Number of music clips to generate for each concept. Default is 10 clips.
+    :type num: int, optional
+    :param ds_name: Dataset name used to locate embeddings. Default is DATASET.
+    :type ds_name: str, optional
+    :param out_dir: Directory where the generated music clips will be saved.
+        Default is 'musicgen-ti-generated'.
+    :type out_dir: str, optional
+    :param prompt_type: Type of prompt used for text-to-music generation. Options include
+        'description', 'inversion', or other custom prompt construction. Default is 'description'.
+    :type prompt_type: str, optional
+    :param use_all: Flag to indicate whether to use all available embeddings. If False, only the best
+        embeddings are used. Default is False.
+    :type use_all: bool, optional
+    :param from_epoch: Specifies the epoch to load embeddings from if `use_all` is True.
+        Default is "0".
+    :type from_epoch: str, optional
+    :return: None. The generated audio files are saved to the specified output directory.
+    """
     if not use_all:
         text_emb = torch.load(MODELS_PATH(ds_name, f"{run_name}-best.pt"))
     else:
@@ -104,6 +137,28 @@ def gen_ti(
 
 
 def gen_style(concepts, duration=5, num=10, ds_name=DATASET):
+    """
+    Generates stylized music based on provided concepts and parameters using the
+    MusicGen model.
+
+    This function utilizes Meta's MusicGen model and its style conditioner for music
+    generation based on textual and audio conditioning. The MusicGen model's
+    parameters for classifier-free guidance, sampling method, and style conditioning
+    are configured to achieve desired creative outcomes. The function iterates over
+    given music concepts, retrieves corresponding audio excerpts, applies processing,
+    and generates stylized music which is subsequently stored in an output directory.
+
+    :param concepts: List of music concepts to use as conditioning elements for the
+        generation process
+    :type concepts: list
+    :param duration: Duration in seconds of the generated music. Defaults to 5.
+    :type duration: int
+    :param num: Number of audio samples to process per concept. Defaults to 10.
+    :type num: int
+    :param ds_name: The name of the dataset containing audio conditioning files.
+    :type ds_name: str
+    :return: None
+    """
     model = MusicGen.get_pretrained("facebook/musicgen-style")
     model.set_generation_params(
         duration=duration,
