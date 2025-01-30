@@ -1,4 +1,6 @@
 from argparse import ArgumentParser
+from unittest.mock import MagicMock
+
 from datasets import Dataset, DatasetDict, load_dataset
 import tempfile
 from musicgen.data import (
@@ -82,6 +84,12 @@ class SaveEmbeddingsCallback(L.Callback):
             update(c)
         self.base_dir.mkdir(parents=True, exist_ok=True)
         torch.save(self.best_embeds, self.base_dir / f"{self.run_name}.pt")
+
+
+class NoOpEvalCallback(L.Callback):
+    def __init__(self):
+        self.evaluation = {}
+        self.calback_state = None
 
 
 class EvalCallback(L.Callback):
@@ -206,7 +214,7 @@ if __name__ == "__main__":
         names.sort()
         return names
 
-    def train_concepts(concepts, cfg_in, stop_flag):
+    def train_concepts(concepts, cfg_in, stop_flag, run_eval: bool):
         stop_flag["value"] = False
         curr_models_num = len(os.listdir(models_path)) + 1
         run_name = f"{curr_models_num}-{cfg_in['model_name']}-{cfg_in['tokens_num']}-{petname.Generate(2)}"
@@ -238,10 +246,13 @@ if __name__ == "__main__":
             concepts=model.model.db.db,
             weights=model.model.text_weights,
         )
-        with suppress_all_output():
-            clap = CLAPLaionModel("music")
-            fad = FrechetAudioDistance(clap)
-        eval_callback = EvalCallback(ds_path, model.model.db, fad)
+        if run_eval:
+            with suppress_all_output():
+                clap = CLAPLaionModel("music")
+                fad = FrechetAudioDistance(clap)
+            eval_callback = EvalCallback(ds_path, model.model.db, fad)
+        else:
+            eval_callback = NoOpEvalCallback()
         trainer = L.Trainer(
             callbacks=[stop_callback, eval_callback, save_callback],
             enable_checkpointing=False,
@@ -276,7 +287,7 @@ if __name__ == "__main__":
             yield model, eval_callback.calback_state or "Training in progress...", gr.update(
                 value=current_epoch, visible=True
             ), gr.update(
-                value=fig, visible=True
+                value=fig, visible=run_eval
             ), run_name
             time.sleep(1.0)
             i += 1
@@ -354,49 +365,49 @@ if __name__ == "__main__":
                 inputs=[model_name_input, model_cfg],
                 outputs=[model_cfg],
             )
-            tokens_num_input = gr.Slider(
-                minimum=1,
-                maximum=20,
-                value=20,
-                step=1,
-                label="Text Representation Size(# of tokens",
-            )
-            tokens_num_input.change(
-                fn=lambda val, cfg: cfg.update({"tokens_num": int(val)}) or cfg,
-                inputs=[tokens_num_input, model_cfg],
-                outputs=[model_cfg],
-            )
-            examples_len_input = gr.Slider(
-                minimum=1,
-                maximum=5,
-                value=5,
-                label="Length of single example per concept(in seconds)",
-                step=1,
-            )
-            examples_len_input.change(
-                fn=lambda val, cfg: cfg.update({"examples_len": int(val)}) or cfg,
-                inputs=[examples_len_input, model_cfg],
-                outputs=[model_cfg],
-            )
-            examples_num_input = gr.Slider(
-                minimum=40,
-                maximum=800,
-                value=400,
-                step=10,
-                label="# of examples per concept",
-            )
-            examples_num_input.change(
-                fn=lambda val, cfg: cfg.update({"examples_num": int(val)}) or cfg,
-                inputs=[examples_num_input, model_cfg],
-                outputs=[model_cfg],
-            )
 
         with gr.Column():
             with gr.Tab("Train"):
+                gr.Markdown("### Traning Configuration")
+                tokens_num_input = gr.Slider(
+                    minimum=1,
+                    maximum=20,
+                    value=20,
+                    step=1,
+                    label="Text Representation Size(# of tokens)",
+                )
+                tokens_num_input.change(
+                    fn=lambda val, cfg: cfg.update({"tokens_num": int(val)}) or cfg,
+                    inputs=[tokens_num_input, model_cfg],
+                    outputs=[model_cfg],
+                )
+                examples_len_input = gr.Slider(
+                    minimum=1,
+                    maximum=5,
+                    value=5,
+                    label="Length of single example per concept(in seconds)",
+                    step=1,
+                )
+                examples_len_input.change(
+                    fn=lambda val, cfg: cfg.update({"examples_len": int(val)}) or cfg,
+                    inputs=[examples_len_input, model_cfg],
+                    outputs=[model_cfg],
+                )
+                examples_num_input = gr.Slider(
+                    minimum=40,
+                    maximum=800,
+                    value=400,
+                    step=10,
+                    label="# of examples per concept",
+                )
+                examples_num_input.change(
+                    fn=lambda val, cfg: cfg.update({"examples_num": int(val)}) or cfg,
+                    inputs=[examples_num_input, model_cfg],
+                    outputs=[model_cfg],
+                )
                 concept_selector = gr.CheckboxGroup(
                     label="Select Concepts",
                     choices=awailable_concepts,
-                    value=awailable_concepts[:1],
                 )
 
                 train_button = gr.Button("Start Training")
@@ -405,10 +416,13 @@ if __name__ == "__main__":
                     value="Waiting for training to start...", label=""
                 )
                 epoch_output = gr.Text("Epoch", label="Epoch", visible=False)
+                run_eval_input = gr.Checkbox(
+                    label="Run model evaluation during training"
+                )
                 training_plot = gr.Plot(visible=False)
                 train_button.click(
                     fn=train_concepts,
-                    inputs=[concept_selector, model_cfg, stop_flag],
+                    inputs=[concept_selector, model_cfg, stop_flag, run_eval_input],
                     outputs=[
                         model_state,
                         training_status_output,
@@ -507,7 +521,6 @@ if __name__ == "__main__":
                     sr = content["sr"]
                     for name, audio in content["data"].items():
                         with gr.Accordion(name):
-                            # gr.Markdown(f"### {name}")
                             for a_idx in range(audio.shape[0]):
                                 gr.Audio(
                                     value=(sr, audio[a_idx].squeeze().numpy()),
