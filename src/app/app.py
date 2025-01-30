@@ -110,7 +110,7 @@ if __name__ == "__main__":
 
     def fetch_embeds():
         names = [file.name for file in models_path.glob("*.pt")]
-        names.sort(reverse=True)
+        names.sort()
         return names
 
     def train_concepts(concepts, cfg_in, stop_flag):
@@ -141,11 +141,11 @@ if __name__ == "__main__":
         save_callback = SaveEmbeddingsCallback(
             base_dir=models_path,
             run_name=run_name,
-            concepts=model.model.db.db.values(),
+            concepts=model.model.db.db,
             weights=model.model.text_weights,
         )
         trainer = L.Trainer(
-            callbacks=[save_callback, stop_callback],
+            callbacks=[stop_callback, save_callback],
             enable_checkpointing=False,
             log_every_n_steps=10,
             max_epochs=MAX_EPOCHS,
@@ -211,7 +211,7 @@ if __name__ == "__main__":
             duration=cfg.examples_len,
             cfg_coef=cfg.cfg_coef,
         )
-        embeds = {c: ConceptEmbeds(10, loaded_embeds[c]) for c in concepts}
+        embeds = {c: ConceptEmbeds(loaded_embeds[c]['epoch'], loaded_embeds[c]['embeds']) for c in concepts}
         model = TransformerTextualInversion.from_previous_run(embeds, music_model, cfg)
         with torch.no_grad():
             res = {"sr": model.model.model.cfg.sample_rate, "data": {}}
@@ -403,11 +403,12 @@ if __name__ == "__main__":
                         return gr.Markdown("No content generated yet.")
                     sr = content["sr"]
                     for name, audio in content["data"].items():
-                        gr.Markdown(f"### {name}")
-                        for a_idx in range(audio.shape[0]):
-                            gr.Audio(
-                                value=(sr, audio[a_idx].squeeze().numpy()),
-                                label=f"{name} {a_idx}",
-                            )
+                        with gr.Accordion(name):
+                        # gr.Markdown(f"### {name}")
+                            for a_idx in range(audio.shape[0]):
+                                gr.Audio(
+                                    value=(sr, audio[a_idx].squeeze().numpy()),
+                                    label=f"{name} {a_idx}",
+                                )
 
     demo.launch()
