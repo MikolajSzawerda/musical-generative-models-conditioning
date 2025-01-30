@@ -35,6 +35,43 @@ class StopTrainingCallback(L.Callback):
             trainer.should_stop = True
 
 
+class SaveEmbeddingsCallback(L.Callback):
+    def __init__(
+        self,
+        base_dir: Path,
+        run_name: str,
+        concepts: dict[str, Concept],
+        weights: torch.Tensor,
+    ):
+        super().__init__()
+        self.base_dir = base_dir
+        self.run_name = run_name
+        self.concepts = concepts
+        # self.best_score = {c: float("inf") for c in cfg.concepts.concepts.keys()}
+        self.weights = weights
+        self.best_embeds = {
+            c.name: weights[c.token_ids].detach().cpu() for c in concepts.values()
+        }
+
+    def on_train_epoch_end(self, trainer, pl_module):
+        # if trainer.current_epoch % self.cfg.n_epochs != 0:
+        #     return
+
+        def update(concept: Concept):
+            logger.info(
+                f"Updating saved embedings for {concept.name} at {trainer.current_epoch} epoch"
+            )
+            self.best_embeds[concept.name] = {
+                "epoch": trainer.current_epoch,
+                "embeds": self.weights[concept.token_ids].detach().cpu(),
+            }
+
+        for c in self.concepts.values():
+            update(c)
+        self.base_dir.mkdir(parents=True, exist_ok=True)
+        torch.save(self.best_embeds, self.base_dir / f"{self.run_name}.pt")
+
+
 def get_ds(ds_path: Path) -> DatasetDict:
     return load_dataset(
         "json",
@@ -101,8 +138,14 @@ if __name__ == "__main__":
         model = TransformerTextualInversion.from_musicgen(music_model, cfg)
         dm = ConceptDataModule(ds, model.model.db, with_valid=False)
         stop_callback = StopTrainingCallback(stop_flag=stop_flag)
+        save_callback = SaveEmbeddingsCallback(
+            base_dir=models_path,
+            run_name=run_name,
+            concepts=model.model.db.db.values(),
+            weights=model.model.text_weights,
+        )
         trainer = L.Trainer(
-            callbacks=[stop_callback],
+            callbacks=[save_callback, stop_callback],
             enable_checkpointing=False,
             log_every_n_steps=10,
             max_epochs=MAX_EPOCHS,
