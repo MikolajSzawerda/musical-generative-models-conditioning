@@ -1,7 +1,13 @@
 from argparse import ArgumentParser
 from datasets import Dataset, DatasetDict, load_dataset
-
-from musicgen.data import ConceptDataModule, Concept, resample_ds, ConceptEmbeds
+import tempfile
+from musicgen.data import (
+    ConceptDataModule,
+    Concept,
+    resample_ds,
+    ConceptEmbeds,
+    TextConcepts,
+)
 from musicgen.model import ModelConfig, TransformerTextualInversion
 import pytorch_lightning as L
 import torch
@@ -15,6 +21,12 @@ import time
 import logging
 import plotly.graph_objects as go
 import petname
+from fadtk.model_loader import CLAPLaionModel
+from fadtk.fad import FrechetAudioDistance, calc_frechet_distance
+from fadtk.utils import get_cache_embedding_path
+from toolz import partition_all
+from musicgen.utils import suppress_all_output
+from audiocraft.data.audio import audio_write
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 MAX_EPOCHS = 140
@@ -70,6 +82,87 @@ class SaveEmbeddingsCallback(L.Callback):
             update(c)
         self.base_dir.mkdir(parents=True, exist_ok=True)
         torch.save(self.best_embeds, self.base_dir / f"{self.run_name}.pt")
+
+
+class EvalCallback(L.Callback):
+    def __init__(
+        self,
+        base_dir: Path,
+        concepts: TextConcepts,
+        fad: FrechetAudioDistance,
+        n_epochs: int = 10,
+        n_gen: int = 5,
+        prompt_template: str = "In the style of %s",
+        generation_batch: int = 50,
+    ):
+        super().__init__()
+        self.base_dir = base_dir
+        self.fad = fad
+        self.concepts = concepts
+        self.n_epochs = n_epochs
+        self.prompt_template = prompt_template
+        self.n_gen = n_gen
+        self.generation_batch = generation_batch
+        self.evaluation = {c: [] for c in concepts.concepts_names}
+        self.calback_state = None
+
+    def on_train_epoch_end(self, trainer, pl_module):
+        if (trainer.current_epoch + 1) % self.n_epochs != 0:
+            return
+        self.calback_state = "Generating examples for evaluation"
+        prompts = []
+
+        def gen_prompt(c: Concept):
+            prompts.extend(
+                [
+                    (
+                        c.name,
+                        self.prompt_template % c.pseudoword(),
+                    )
+                    for _ in range(self.n_gen)
+                ]
+            )
+
+        self.concepts.execute(gen_prompt)
+        prompts_batches = partition_all(self.generation_batch, prompts)
+        concept_counter = {}
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_dir = Path(tmpdir)
+
+            def save_audio(audio: torch.Tensor, concept_name: str):
+                ctn = concept_counter.get(concept_name, 0)
+                path = tmp_dir / concept_name / "temp" / f"music_p{ctn}"
+                audio_write(path, audio, pl_module.model.model.cfg.sample_rate)
+                concept_counter[concept_name] = ctn + 1
+
+            for batch in prompts_batches:
+                concepts, prompts = list(zip(*batch))
+                with torch.no_grad():
+                    results = pl_module.model.model.generate(prompts).cpu()
+                results = results / np.max(np.abs(results.numpy()))
+                for concept_name, audio in zip(concepts, results):
+                    save_audio(audio, concept_name)
+            self.calback_state = "Evaluating examples"
+            with suppress_all_output():
+                for c_name in self.concepts.concepts_names:
+
+                    def cache_path_emb(path: Path):
+                        for f in path.glob("*.*"):
+                            if get_cache_embedding_path(self.fad.ml.name, f).exists():
+                                continue
+                            self.fad.cache_embedding_file(f)
+
+                    base_path = self.base_dir / "data" / "train" / c_name / "audio"
+                    c_path = tmp_dir / c_name / "temp"
+                    cache_path_emb(base_path)
+                    cache_path_emb(c_path)
+
+                    mu_gen, cov_gen = self.fad.load_stats(c_path)
+                    mu_ref, cov_ref = self.fad.load_stats(base_path)
+                    self.evaluation[c_name].append(
+                        calc_frechet_distance(mu_ref, cov_ref, mu_gen, cov_gen)
+                    )
+            self.calback_state = None
 
 
 def get_ds(ds_path: Path) -> DatasetDict:
@@ -136,6 +229,7 @@ if __name__ == "__main__":
             cfg_coef=cfg.cfg_coef,
         )
         model = TransformerTextualInversion.from_musicgen(music_model, cfg)
+
         dm = ConceptDataModule(ds, model.model.db, with_valid=False)
         stop_callback = StopTrainingCallback(stop_flag=stop_flag)
         save_callback = SaveEmbeddingsCallback(
@@ -144,8 +238,12 @@ if __name__ == "__main__":
             concepts=model.model.db.db,
             weights=model.model.text_weights,
         )
+        with suppress_all_output():
+            clap = CLAPLaionModel("music")
+            fad = FrechetAudioDistance(clap)
+        eval_callback = EvalCallback(ds_path, model.model.db, fad)
         trainer = L.Trainer(
-            callbacks=[stop_callback, save_callback],
+            callbacks=[stop_callback, eval_callback, save_callback],
             enable_checkpointing=False,
             log_every_n_steps=10,
             max_epochs=MAX_EPOCHS,
@@ -156,8 +254,6 @@ if __name__ == "__main__":
             logger.info("Training started")
             trainer.fit(model, dm)
 
-        y = {name: [] for name in concepts}
-
         fig = go.Figure(layout=go.Layout(template="plotly_dark"))
         fig.update_layout(
             title=f"Training progress for run: {run_name}",
@@ -165,7 +261,7 @@ if __name__ == "__main__":
             xaxis=dict(visible=False),
             yaxis=dict(visible=False),
         )
-        for label in y.keys():
+        for label in eval_callback.evaluation.keys():
             fig.add_trace(go.Scatter(y=[], mode="lines+markers", name=label))
         global train_thread
         if train_thread is None or not train_thread.is_alive():
@@ -175,9 +271,13 @@ if __name__ == "__main__":
         i = 0
         while train_thread.is_alive():
             current_epoch = stop_callback.current_epoch
-            yield model, "Training in progress...", gr.update(
+            for trace_index, label in enumerate(eval_callback.evaluation.keys()):
+                fig.data[trace_index].y = eval_callback.evaluation[label]
+            yield model, eval_callback.calback_state or "Training in progress...", gr.update(
                 value=current_epoch, visible=True
-            ), gr.update(value=fig, visible=True), run_name
+            ), gr.update(
+                value=fig, visible=True
+            ), run_name
             time.sleep(1.0)
             i += 1
 
@@ -211,7 +311,10 @@ if __name__ == "__main__":
             duration=cfg.examples_len,
             cfg_coef=cfg.cfg_coef,
         )
-        embeds = {c: ConceptEmbeds(loaded_embeds[c]['epoch'], loaded_embeds[c]['embeds']) for c in concepts}
+        embeds = {
+            c: ConceptEmbeds(loaded_embeds[c]["epoch"], loaded_embeds[c]["embeds"])
+            for c in concepts
+        }
         model = TransformerTextualInversion.from_previous_run(embeds, music_model, cfg)
         with torch.no_grad():
             res = {"sr": model.model.model.cfg.sample_rate, "data": {}}
@@ -404,7 +507,7 @@ if __name__ == "__main__":
                     sr = content["sr"]
                     for name, audio in content["data"].items():
                         with gr.Accordion(name):
-                        # gr.Markdown(f"### {name}")
+                            # gr.Markdown(f"### {name}")
                             for a_idx in range(audio.shape[0]):
                                 gr.Audio(
                                     value=(sr, audio[a_idx].squeeze().numpy()),
