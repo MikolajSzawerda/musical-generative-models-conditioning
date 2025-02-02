@@ -189,14 +189,17 @@ class GenEvalCallback(L.Callback):
         self,
         fad: FrechetAudioDistance,
         clap: CLAPLaionModel,
-        base_dir: Datasets,
+        base_dir: Datasets | str,
         cfg: EvaluationCallbackConfig,
     ):
         super().__init__()
         self.cfg = cfg
         self.fad = fad
         self.clap = clap
-        self.base_dir = base_dir.value
+        if isinstance(base_dir, Datasets):
+            self.base_dir = base_dir.value
+        else:
+            self.base_dir = base_dir
         with open(INPUT_PATH(self.base_dir, "metadata_concepts.json"), "r") as fh:
             self.concept_descriptions = json.load(fh)
 
@@ -314,12 +317,15 @@ def load_run_embedings(base_dir: Datasets, run_name: str):
 class SaveEmbeddingsCallback(L.Callback):
     def __init__(
         self,
-        base_dir: Datasets,
+        base_dir: Datasets | str,
         weights: torch.Tensor,
         cfg: EmbedingsSaveCallbackConfig,
     ):
         super().__init__()
-        self.base_dir = base_dir.value
+        if isinstance(base_dir, Datasets):
+            self.base_dir = base_dir.value
+        else:
+            self.base_dir = base_dir
         self.cfg = cfg
         self.best_score = {c: float("inf") for c in cfg.concepts.concepts.keys()}
         self.best_file_path = None

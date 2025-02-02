@@ -1,6 +1,6 @@
 import pytorch_lightning as L
 from pytorch_lightning.loggers import WandbLogger
-from tools.project import LOGS_PATH
+from tools.project import LOGS_PATH, INPUT_PATH
 import torch
 import wandb
 from musicgen.data import ConceptDataModule, get_ds, resample_ds
@@ -10,16 +10,14 @@ from audiocraft.models import MusicGen
 from fadtk.model_loader import CLAPLaionModel
 from fadtk.fad import FrechetAudioDistance
 import logging
-from musicgen.data_const import Datasets
-from model import ModelConfig, TransformerTextualInversion
-from callbacks import (
+from musicgen.model import ModelConfig, TransformerTextualInversion
+from musicgen.callbacks import (
     EmbedingsSaveCallbackConfig,
     EvaluationCallbackConfig,
     SaveEmbeddingsCallback,
     GenEvalCallback,
-    EMACallback,
 )
-from utils import suppress_all_output
+from musicgen.utils import suppress_all_output
 
 logger = logging.getLogger(__name__)
 
@@ -29,10 +27,8 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 WANDB_PROJECT = "textual-inversion-lr"
 SEED = 42
 
-EXP_DATASET = Datasets.TEXTUAL_INVERSION_V3
 
-
-def run_exp(cfg: ModelConfig, wandb_logger):
+def run_exp(cfg: ModelConfig, dataset_name: str, wandb_logger):
     logger.info("Loading MusicGen")
     model_name = f"facebook/musicgen-{cfg.model_name}"
     music_model = MusicGen.get_pretrained(model_name, device=DEVICE)
@@ -42,12 +38,12 @@ def run_exp(cfg: ModelConfig, wandb_logger):
     model = TransformerTextualInversion.from_musicgen(music_model, cfg)
 
     logger.info("Loading Dataset")
-    ds = get_ds(EXP_DATASET).filter(lambda x: x["concept"] in cfg.concepts)
+    ds = get_ds(dataset_name, INPUT_PATH).filter(lambda x: x["concept"] in cfg.concepts)
     ds = resample_ds(ds, cfg.examples_num)
     dm = ConceptDataModule(
         ds,
         model.model.db,
-        base_dir=EXP_DATASET,
+        base_dir=INPUT_PATH(dataset_name),
         music_len=249,
         batch_size=cfg.batch_size,
         randomize_tokens=cfg.randomize_tokens,
@@ -57,7 +53,7 @@ def run_exp(cfg: ModelConfig, wandb_logger):
         fad = FrechetAudioDistance(clap)
 
     quick_save_cl = SaveEmbeddingsCallback(
-        EXP_DATASET,
+        dataset_name,
         model.model.text_weights,
         EmbedingsSaveCallbackConfig(model.model.db),
     )
@@ -68,7 +64,7 @@ def run_exp(cfg: ModelConfig, wandb_logger):
     eval_cl = GenEvalCallback(
         fad,
         clap,
-        EXP_DATASET,
+        dataset_name,
         EvaluationCallbackConfig(
             model.model.db, cfg.tokens_num, randomize_tokens=cfg.randomize_tokens
         ),
@@ -91,16 +87,17 @@ def run_exp(cfg: ModelConfig, wandb_logger):
     trainer.fit(model, dm)
 
 
-def run_sweep_exp():
+def run_sweep_exp(dataset_name: str):
     wandb.init()
     run_exp(
         ModelConfig(**wandb.config.as_dict()),
+        dataset_name,
         WandbLogger(project=WANDB_PROJECT, save_dir=LOGS_PATH),
     )
     wandb.finish()
 
 
-def run_args_exp(args):
+def run_args_exp(args, dataset_name: str):
     wandb_logger = WandbLogger(project=WANDB_PROJECT, save_dir=LOGS_PATH)
     wandb_logger.experiment.config["batch_size"] = args.batch_size
     wandb_logger.experiment.config["examples_len"] = args.examples_len
@@ -117,42 +114,45 @@ def run_args_exp(args):
     wandb_logger.experiment.config["cr_margin"] = args.cr_margin
     wandb_logger.experiment.config["cfg_coef"] = args.cfg_coef
     wandb_logger.experiment.config["randomize_tokens"] = args.randomize_tokens
-    run_exp(args, wandb_logger)
+    run_exp(args, dataset_name, wandb_logger)
 
 
 if __name__ == "__main__":
+    init_parser = ArgumentParser(add_help=True)
+    init_parser.add_argument("--sweep-cfg", type=str)
+    init_parser.add_argument("--dataset-name", type=str, required=True)
+    init_parser.add_argument("--examples-len", type=int, default=5)
+    init_parser.add_argument("--examples-num", type=int, default=100)
+    init_parser.add_argument("--tokens-num", type=int, default=20)
+    init_parser.add_argument("--batch-size", type=int, default=10)
+    init_parser.add_argument("--grad-amplify", type=float, default=10.0)
+    init_parser.add_argument("--entropy-alpha", type=float, default=1e0)
+    init_parser.add_argument("--ortho-alpha", type=float, default=1e-1)
+    init_parser.add_argument("--cr-margin", type=float, default=1.5)
+    init_parser.add_argument("--cfg-coef", type=float, default=3.0)
+    init_parser.add_argument("--lr", type=float, default=1e-1)
+    init_parser.add_argument("--model-name", type=str, default="small")
+    init_parser.add_argument(
+        "--randomize-tokens", dest="randomize_tokens", action="store_true"
+    )
+    init_parser.add_argument(
+        "--no-randomize-tokens", dest="randomize_tokens", action="store_false"
+    )
+    # init_parser.add_argument("--previous-run", type=str, default="")
+    init_parser.add_argument("--concepts", nargs="+", default=["8bit"])
+    init_args, _ = init_parser.parse_args()
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
     L.seed_everything(SEED, workers=True)
-    init_parser = ArgumentParser(add_help=False)
-    init_parser.add_argument("--use-sweep", action="store_true")
-    init_args, _ = init_parser.parse_known_args()
-    if init_args.use_sweep:
-        with open(LOGS_PATH("sweep_config.yaml")) as f:
+
+    if init_args.sweep_cfg:
+        with open(init_args.sweep_cfg) as f:
             sweep_config = yaml.safe_load(f)
         sweep_id = wandb.sweep(sweep=sweep_config, project=WANDB_PROJECT)
-        wandb.agent(sweep_id, function=run_sweep_exp, count=12)
+        wandb.agent(
+            sweep_id, function=lambda: run_sweep_exp(init_args.dataset_name), count=12
+        )
     else:
-        parser = ArgumentParser(parents=[init_parser])
-        parser.add_argument("--examples-len", type=int, default=5)
-        parser.add_argument("--examples-num", type=int, default=100)
-        parser.add_argument("--tokens-num", type=int, default=20)
-        parser.add_argument("--batch-size", type=int, default=10)
-        parser.add_argument("--grad-amplify", type=float, default=10.0)
-        parser.add_argument("--entropy-alpha", type=float, default=1e0)
-        parser.add_argument("--ortho-alpha", type=float, default=1e-1)
-        parser.add_argument("--cr-margin", type=float, default=1.5)
-        parser.add_argument("--cfg-coef", type=float, default=3.0)
-        parser.add_argument("--lr", type=float, default=1e-1)
-        parser.add_argument("--model-name", type=str, default="small")
-        parser.add_argument(
-            "--randomize-tokens", dest="randomize_tokens", action="store_true"
-        )
-        parser.add_argument(
-            "--no-randomize-tokens", dest="randomize_tokens", action="store_false"
-        )
-        # parser.add_argument("--previous-run", type=str, default="")
-        parser.add_argument("--concepts", nargs="+", default=["8bit"])
-        run_args_exp(parser.parse_args())
+        run_args_exp(init_args, init_args.dataset_name)

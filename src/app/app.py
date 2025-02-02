@@ -1,7 +1,6 @@
 from argparse import ArgumentParser
-from unittest.mock import MagicMock
 
-from datasets import Dataset, DatasetDict, load_dataset
+from datasets import DatasetDict, load_dataset
 import tempfile
 from musicgen.data import (
     ConceptDataModule,

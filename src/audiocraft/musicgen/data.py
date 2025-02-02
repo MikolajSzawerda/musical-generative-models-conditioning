@@ -20,12 +20,12 @@ NUM_WORKERS = int(os.cpu_count() * 0.75)
 logger = logging.getLogger(__name__)
 
 
-def get_ds(dataset: Datasets, base_dir) -> DatasetDict:
+def get_ds(dataset_name: str, base_dir: str) -> DatasetDict:
     return load_dataset(
         "json",
         data_files={
-            "valid": base_dir(dataset.value, "metadata_val.json"),
-            "train": base_dir(dataset.value, "metadata_train.json"),
+            "valid": os.path.join(base_dir, dataset_name, "metadata_val.json"),
+            "train": os.path.join(base_dir, dataset_name, "metadata_train.json"),
         },
     )
 
@@ -185,7 +185,7 @@ class ConceptDataset(torch.utils.data.Dataset):
         ds: Dataset,
         split: str,
         concepts_db: TextConcepts,
-        base_dir: Datasets = None,
+        base_dir: Datasets | str = None,
         music_len: int = 100,
         pad_value: int = 0,
         preload_ds=True,
@@ -203,8 +203,10 @@ class ConceptDataset(torch.utils.data.Dataset):
                 self.base_dir = os.path.dirname(list(ds.download_checksums.keys())[0])
             except Exception:
                 self.base_dir: str = from_ds()
-        else:
+        elif isinstance(base_dir, Datasets):
             self.base_dir = from_ds()
+        else:
+            self.base_dir = base_dir
 
         self.concepts_db = concepts_db
         self.prompter = PromptProvider(val_desc if split == "valid" else train_desc)
@@ -279,39 +281,11 @@ def collate_fn(batch):
 
 
 class ConceptDataModule(L.LightningDataModule):
-    """
-    Handles data loading and preparation for a neural network training pipeline.
-    This module divides the dataset into train and validation sets, applies necessary
-    preprocessing steps, and creates data loaders for training and validation phases.
-
-    ConceptDataModule is tailored to handle datasets with specific text concepts and
-    associated metadata. It ensures flexibility in how datasets are prepared and how
-    tokens are randomized.
-
-    :ivar music_len: The maximum length of the music representation for each data
-        instance.
-    :type music_len: int
-    :ivar batch_size: Number of data samples to include in each batch.
-    :type batch_size: int
-    :ivar ds: A dictionary-based dataset split into train and optionally validation sets.
-    :type ds: DatasetDict
-    :ivar concepts_db: An instance of TextConcepts, containing database of text-related
-        concepts for conditioning data.
-    :type concepts_db: TextConcepts
-    :ivar base_dir: The base directory containing datasets used during training.
-    :type base_dir: Datasets
-    :ivar with_valid: Whether or not to include a validation dataset.
-    :type with_valid: bool
-    :ivar randomize_tokens: Flag indicating whether tokens should be randomized during
-        dataset preparation.
-    :type randomize_tokens: bool
-    """
-
     def __init__(
         self,
         ds: DatasetDict,
         concepts_db: TextConcepts,
-        base_dir: Datasets = None,
+        base_dir: Datasets | str = None,
         music_len: int = 255,
         batch_size: int = 5,
         with_valid: bool = True,
