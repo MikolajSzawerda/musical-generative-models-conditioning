@@ -1,0 +1,30 @@
+method: grid
+metric:
+  name: fad_best_avg
+  goal: minimize
+parameters:
+  examples_len:
+    value: 5
+  batch_size:
+    value: 10
+  tokens_num:
+    value: 20
+  grad_amplify:
+    value: 10.0
+  entropy_alpha:
+    value: 1.0
+  ortho_alpha:
+    value: 0.1
+  lr:
+    value: 0.1
+  cr_margin:
+    value: 1.5
+  cfg_coef:
+    value: 3.0
+  concepts:
+    values:
+      - [ '8bit' ]
+      - [ 'synthwave' ]
+      - [ 'caravan', 'metal', 'ichika' ]
+  model_name:
+    value: "small"

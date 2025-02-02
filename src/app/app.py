@@ -177,7 +177,6 @@ def get_ds(ds_path: Path) -> DatasetDict:
     return load_dataset(
         "json",
         data_files={
-            "valid": str(ds_path / "metadata_val.json"),
             "train": str(ds_path / "metadata_train.json"),
         },
     )
@@ -293,7 +292,7 @@ if __name__ == "__main__":
             i += 1
 
         logger.info("Training finished")
-        return model, "Training finished", i, fig, run_name
+        yield model, "Training finished", i, fig, run_name
 
     def generate_music(
         concepts: list[str],

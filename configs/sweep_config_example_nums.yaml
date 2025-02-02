@@ -1,0 +1,31 @@
+method: grid
+metric:
+  name: fad_avg
+  goal: minimize
+parameters:
+  examples_len:
+    value: 5
+  examples_num:
+    values: [ 10, 100, 200, 400, 700 ]
+  batch_size:
+    value: 20
+  tokens_num:
+    value: 20
+  grad_amplify:
+    value: 10.0
+  entropy_alpha:
+    value: 10.0
+  ortho_alpha:
+    value: 0.1
+  lr:
+    value: 0.1
+  cr_margin:
+    value: 1.5
+  cfg_coef:
+    value: 3.0
+  concepts:
+    value: [ 'metal' ]
+  model_name:
+    value: "medium"
+  randomize_tokens:
+    value: False
