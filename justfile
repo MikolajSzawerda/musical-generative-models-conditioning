@@ -23,6 +23,7 @@ download-example-dataset:
 # install app dependencies
 prepare-app: prepare-audiocraft
     cd src/app \
+    && poetry run pip install "torch==2.1.0" \
     && poetry install
 
 # run application

@@ -140,7 +140,7 @@ if __name__ == "__main__":
     )
     # init_parser.add_argument("--previous-run", type=str, default="")
     init_parser.add_argument("--concepts", nargs="+", default=["8bit"])
-    init_args, _ = init_parser.parse_args()
+    init_args = init_parser.parse_args()
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",

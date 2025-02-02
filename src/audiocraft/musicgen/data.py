@@ -30,7 +30,7 @@ def get_ds(dataset_name: str, base_dir: str) -> DatasetDict:
     )
 
 
-def resample_ds(ds, max_examples_num: int):
+def resample_ds(ds, max_examples_num: int, with_valid=True):
     def resample_split(split: str):
         by_concept_count = {}
         idxs = []
@@ -46,7 +46,8 @@ def resample_ds(ds, max_examples_num: int):
         return res_ds
 
     ds["train"] = resample_split("train")
-    ds["valid"] = resample_split("valid")
+    if with_valid:
+        ds["valid"] = resample_split("valid")
     return ds
 
 

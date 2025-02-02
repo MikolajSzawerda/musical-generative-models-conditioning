@@ -225,7 +225,7 @@ if __name__ == "__main__":
             model_name=cfg_in["model_name"],
         )
         ds = get_ds(ds_path).filter(lambda x: x["concept"] in cfg.concepts)
-        ds = resample_ds(ds, cfg.examples_num)
+        ds = resample_ds(ds, cfg.examples_num, False)
         model_name = f"facebook/musicgen-{cfg.model_name}"
         music_model = MusicGen.get_pretrained(model_name, device=DEVICE)
         music_model.set_generation_params(

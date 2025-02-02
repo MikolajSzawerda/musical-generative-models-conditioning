@@ -23,7 +23,7 @@ parameters:
     value: 3.0
   concepts:
     values:
-      - [ '80s-synth' ]
+      - [ '8bit' ]
       - [ 'choir' ]
       - [ 'saxophone-chillout', 'metal-solos' ]
       - [ '8bit-slow', '8bit' ]
