@@ -62,6 +62,10 @@ class ConceptEmbeds:
 
 
 class TokensProvider:
+    """
+    Generate tokens for concept
+    """
+
     def __init__(self, num: int):
         self.num = num
 
@@ -73,6 +77,10 @@ class TokensProvider:
 
 
 class PromptProvider:
+    """
+    Generate prompts given pseudo-word tokens
+    """
+
     def __init__(self, prompts_template):
         self.template = prompts_template
 
@@ -95,17 +103,7 @@ class Concept:
 
 class TextConcepts:
     """
-    Represents a collection of text-based concepts and provides methods for interacting
-    with and manipulating these concepts. Each concept has a name, associated tokens,
-    and other attributes, which are handled internally for efficient processing.
-
-    This class offers functionalities such as retrieving concept details, accessing all
-    concept names, collecting token IDs across all concepts, and executing custom
-    functions on each concept. It also includes class methods for constructing the
-    class based on specific initialization strategies.
-
-    :ivar db: A dictionary mapping concept names to their respective Concept objects.
-    :type db: dict[str, Concept]
+    Represents colection of concepts
     """
 
     def __init__(self, concepts: list[Concept]):
@@ -165,21 +163,8 @@ class TextConcepts:
 
 class ConceptDataset(torch.utils.data.Dataset):
     """
-    Handles the representation and management of a dataset containing music embeddings
-    and their associated concepts, enabling data sampling and preprocessing functionalities.
-
-    The `ConceptDataset` class is designed to handle pre-processing of encoded music
-    embeddings from a provided dataset of rows and generate prompts related to specific
-    concept tokens. It allows for random sampling of a subsection of the encoded music
-    based on a configurable length and padding if necessary. Preloading of audio embeddings
-    is supported for efficient loading during runtime. The dataset is intended to assist
-    in tasks requiring joint representation of music and textual or conceptual data.
-
-    :ivar ds: The dataset containing music-related rows.
-    :type ds: Dataset
-    :ivar split: The data split, indicating 'train', 'valid', or other custom splits.
-    :type split: str
-    :ivar concepts_db: TextConcepts database for managing and retrieving concept"""
+    Represents data for colection of concepts: audio fragments and their encoded form, concept name, new tokens ids and prompt
+    """
 
     def __init__(
         self,

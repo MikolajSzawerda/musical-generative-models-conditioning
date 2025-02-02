@@ -49,7 +49,10 @@ class EmbedingsSaveCallbackConfig:
     n_epochs: int = 10
 
 
-def audio_to_spectrogram_image(audio, sr):
+def audio_to_spectrogram_image(audio: np.ndarray, sr: int):
+    """
+    Converts audio as numpy into matplotlib figure spectrogram
+    """
     if audio.ndim > 1:
         audio = np.squeeze(audio, axis=0)
     S = librosa.feature.melspectrogram(y=audio, sr=sr, n_mels=128, fmax=sr / 2)
@@ -86,8 +89,21 @@ def _calc_clap_score(fad, clap, concept: str, path: str, descriptions: dict[str,
 
 @torch.no_grad()
 def offline_eval(
-    fad, clap, base_dir: str, concepts: list[str], descriptions: dict[str, str]
+    fad: FrechetAudioDistance,
+    clap: CLAPLaionModel,
+    base_dir: str,
+    concepts: list[str],
+    descriptions: dict[str, str],
 ):
+    """
+    Calculates fad with respect to fma_pop, fad with respect to reference set and clap score with respect to descriptions
+    :param fad: used to calculations
+    :param clap: embedings provider
+    :param base_dir: dataset name
+    :param concepts:
+    :param descriptions: concepts descriptions
+    :return:
+    """
     res = {}
     mu_bg, cov_bg = fad.load_stats("fma_pop")
     for concept in concepts:
@@ -122,6 +138,9 @@ import sys
 
 
 def _suppress_output():
+    """
+    fadtk is very naughty and logs everything, even current localization of lib's authors
+    """
     devnull = open(os.devnull, "w")
     sys.stdout = devnull
     sys.stderr = devnull
@@ -130,6 +149,9 @@ def _suppress_output():
 def calc_eval(
     base_dir: str, concepts: list[str], descriptions: dict[str, str], workers=2
 ):
+    """
+    Runs :py:func:`offline_eval`in parrarel
+    """
     concepts_batches = list(partition_all(len(concepts) // workers, concepts))
     multiprocessing.set_start_method("spawn", force=True)
     with ProcessPoolExecutor(
@@ -148,6 +170,10 @@ def calc_eval(
 
 
 class EMACallback(L.Callback):
+    """
+    Calback to perform exponential moving average on learned text embeddings
+    """
+
     def __init__(self, decay=0.9999):
         super().__init__()
         self.decay = decay
@@ -185,6 +211,10 @@ class EMACallback(L.Callback):
 
 
 class GenEvalCallback(L.Callback):
+    """
+    Callback to generate examples per concept and evalute them
+    """
+
     def __init__(
         self,
         fad: FrechetAudioDistance,
@@ -315,6 +345,10 @@ def load_run_embedings(base_dir: Datasets, run_name: str):
 
 
 class SaveEmbeddingsCallback(L.Callback):
+    """
+    Callback to save best embedings by FAD with respect to reference set and embedings by epoch
+    """
+
     def __init__(
         self,
         base_dir: Datasets | str,
