@@ -36,6 +36,9 @@ class ModelConfig:
 
 
 class TIMusicGen:
+    """
+    Represents text-to-music model with extended text representation of new concepts
+    """
 
     def __init__(self, model: MusicGen, concepts_db: TextConcepts, cfg: ModelConfig):
         self.model = model
@@ -81,6 +84,9 @@ class TIMusicGen:
 
 
 class TransformerTextualInversion(L.LightningModule):
+    """
+    Represents text-to-music model that can perform textual inversion on new concepts
+    """
 
     def __init__(
         self,

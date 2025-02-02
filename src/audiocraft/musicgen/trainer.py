@@ -23,7 +23,6 @@ logger = logging.getLogger(__name__)
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# WANDB_PROJECT = "debug"
 WANDB_PROJECT = "textual-inversion-lr"
 SEED = 42
 
@@ -138,7 +137,6 @@ if __name__ == "__main__":
     init_parser.add_argument(
         "--no-randomize-tokens", dest="randomize_tokens", action="store_false"
     )
-    # init_parser.add_argument("--previous-run", type=str, default="")
     init_parser.add_argument("--concepts", nargs="+", default=["8bit"])
     init_args = init_parser.parse_args()
     logging.basicConfig(
