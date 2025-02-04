@@ -18,8 +18,7 @@ prepare-app-dataset dataset_name audio_dataset:
 download-example-dataset:
     source .env \
     && wget --user=$STORAGE_LOGIN --password=$STORAGE_PASSWORD $STORAGE_URL/example-dataset.zip -O data/input/dataset.zip \
-    && cd data/input
-    && unzip dataset.zip
+    && unzip data/input/dataset.zip -d data/input
 
 # install app dependencies
 prepare-app: prepare-audiocraft
