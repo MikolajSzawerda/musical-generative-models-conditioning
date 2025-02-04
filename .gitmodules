@@ -1,6 +1,6 @@
 [submodule "src/meta_audiocraft"]
 	path = src/meta_audiocraft
-	url = git@github.com:facebookresearch/audiocraft.git
+	url = https://github.com/facebookresearch/audiocraft.git
 [submodule "src/vampnet"]
 	path = src/vampnet
-	url = git@github.com:MikolajSzawerda/vampnet.git
+	url = https://github.com/MikolajSzawerda/vampnet.git
