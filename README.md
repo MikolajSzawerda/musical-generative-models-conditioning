@@ -101,7 +101,7 @@ You can ask author of this repo to provide you example-dataset, and then just ru
 ```shell
 just download-example-dataset
 just prepare-app
-just run-app data/input/example-dataset models/example-dataset
+just run-app ../../data/input/example-dataset ../../models
 ```
 
 ### Running sweep training
